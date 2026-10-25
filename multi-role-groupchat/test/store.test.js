@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFile, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, appendFile, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -248,4 +248,25 @@ test('owner profile persists, validates, and labels owner messages', async (t) =
     reloaded.updateGroup(live.gid, { owner: { name: '阿明', setting: 'x'.repeat(20001) } }),
     (error) => error instanceof GroupChatError && /群主设定/.test(error.message),
   );
+});
+
+
+test('deleteGroup removes the directory, rejects a live turn, and clears caches', async (t) => {
+  const { store } = await fixture(t);
+  const live = await store.createGroup({
+    name: '待删除群',
+    members: [{ name: '甲', core: '' }, { name: '乙', core: '' }],
+  });
+  await access(live.dir);
+  store.turns.set(live.gid, { abort: new AbortController(), groupId: live.gid });
+  await assert.rejects(
+    store.deleteGroup(live.gid),
+    (error) => error instanceof GroupChatError && error.status === 409,
+  );
+  await access(live.dir);
+  store.turns.delete(live.gid);
+  await store.deleteGroup(live.gid);
+  await assert.rejects(access(live.dir));
+  assert.deepEqual(await store.listGroups(), []);
+  await assert.rejects(store.load(live.gid), (error) => error instanceof GroupChatError && error.status === 404);
 });

@@ -103,7 +103,7 @@ async function fixture(t, options) {
 
 test('routes expose state, creation, sending, pinning, rewriting, and export', async (t) => {
   const { routes } = await fixture(t, { texts: ['你好。', '我也在。', '那好吧。'] });
-  assert.equal(routes.size, 10);
+  assert.equal(routes.size, 11);
 
   const created = await call(routes, '/api/groupchat.group-create', {
     body: {
@@ -231,4 +231,30 @@ test('owner settings travel through the route and a custom owner name stops the 
   const exported = await call(routes, '/api/groupchat.export', { body: { groupId } });
   assert.match(exported.json.markdown, /- 群主：阿明/);
   assert.match(exported.json.markdown, /### 第 1 轮 · 阿明/);
+});
+
+
+test('deleting a group requires its exact name and removes its data', async (t) => {
+  const { store, routes } = await fixture(t);
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: { name: '可删除群', members: [{ name: '甲', core: '' }, { name: '乙', core: '' }] },
+  });
+  const groupId = created.json.groupId;
+  const wrong = await call(routes, '/api/groupchat.group-delete', {
+    body: { groupId, confirmName: '错误名字' },
+  });
+  assert.equal(wrong.status, 400);
+  assert.equal(wrong.json.error.code, 'groupchat/confirm-mismatch');
+  assert.equal((await store.listGroups()).length, 1);
+
+  const deleted = await call(routes, '/api/groupchat.group-delete', {
+    body: { groupId, confirmName: '可删除群' },
+  });
+  assert.equal(deleted.status, 200);
+  assert.deepEqual(deleted.json, { deleted: true, groupId });
+  assert.deepEqual(await store.listGroups(), []);
+  const state = await call(routes, '/api/groupchat.state', { method: 'GET' });
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.json.groups, []);
+  assert.equal(state.json.selected, null);
 });

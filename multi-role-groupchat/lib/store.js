@@ -306,6 +306,31 @@ export class GroupStore {
   }
 
   /**
+   * Permanently delete one group directory after its writes settle.
+   *
+   * Active generations are refused rather than silently aborted: deleting the
+   * directory under a writer would leave the turn's own append queue pointing
+   * at a missing path.
+   *
+   * @param {string} gid - group id.
+   * @returns {Promise<void>} completion after the directory is gone.
+   */
+  async deleteGroup(gid) {
+    const live = await this.load(gid);
+    if (this.turns.has(gid)) {
+      throw new GroupChatError('这个群正在生成，请先停止当前回应再删除。', 409, 'groupchat/busy');
+    }
+    const queue = this.queues.get(gid);
+    if (queue !== undefined) {
+      await queue.catch(() => {});
+    }
+    await fs.rm(live.dir, { recursive: true, force: true });
+    this.groups.delete(gid);
+    this.queues.delete(gid);
+    this.loading.delete(gid);
+  }
+
+  /**
    * Create or update one member. Passing `memberId` edits; omitting it adds.
    * @param {string} gid - group id.
    * @param {object} input - member fields.

@@ -175,6 +175,11 @@ window.__ModuleLoader__.load({
 @keyframes mgcSpin{to{transform:rotate(360deg)}}
 .mgc-tableHead{display:flex;align-items:center;gap:8px;padding:4px 2px 10px;color:var(--dsw-alias-label-secondary);font-size:11px}
 .mgc-pathText{word-break:break-all;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:17px}
+.mgc-dangerZone{margin-top:24px;padding-top:16px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.mgc-dangerTitle{margin:0 0 6px;font-size:13px;font-weight:600;line-height:20px;color:var(--dsw-alias-state-error-primary)}
+.mgc-dangerDesc{margin:0 0 10px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.mgc-dangerWarning{margin:0 0 10px;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}
+.mgc-deleteConfirm{padding:12px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 35%,transparent);border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 6%,transparent)}
 .mgc-bannerSlot{max-width:840px;margin:0 auto;padding:8px clamp(16px,3vw,36px) 0}
 .mgc-createEmbed{width:100%}
 .mgc-typingLabel{color:var(--dsw-alias-label-secondary);font-size:12px}
@@ -293,6 +298,14 @@ window.__ModuleLoader__.load({
       'group.policyHint': '保存后立即生效；已生成的消息不受影响。',
       'group.budgetHint': '累计用量达到上限后停止生成，并写入一条提示。设为 0 表示不限制。',
       'group.modelHint': '群级覆盖留空时使用宿主默认；成员还可以再单独覆盖。',
+      'group.deleteTitle': '危险操作',
+      'group.deleteDesc': '删除这个群会永久移除成员设定、消息事件、钉住与导出文件，无法恢复。建议先导出 Markdown。',
+      'group.deleteButton': '删除这个群聊',
+      'group.deleteBusy': '正在生成，先停止当前回应再删除。',
+      'group.deleteWarning': '这会永久删除群目录，无法撤销。请输入完整群名确认。',
+      'group.deleteConfirmLabel': '输入「{name}」以确认',
+      'group.deleteConfirm': '永久删除',
+      'group.deleting': '删除中…',
       'owner.title': '群主档案',
       'owner.optional': '可选；创建后也能在管理里修改',
       'owner.hint': '成员每轮都会看到这份档案；群主名字也会用于 @。',
@@ -459,6 +472,14 @@ window.__ModuleLoader__.load({
       'group.policyHint': 'Applies immediately; already generated messages are unchanged.',
       'group.budgetHint': 'Generation stops and records a notice once accumulated usage reaches a limit. 0 disables a limit.',
       'group.modelHint': 'Leave the group override empty to follow the Host default; each member can override again.',
+      'group.deleteTitle': 'Danger zone',
+      'group.deleteDesc': 'Deleting this group permanently removes its member settings, event log, pins, and exports. This cannot be undone. Export Markdown first if you may need it.',
+      'group.deleteButton': 'Delete this group',
+      'group.deleteBusy': 'Generation is running; stop it before deleting.',
+      'group.deleteWarning': 'This permanently deletes the group directory and cannot be undone. Type the full group name to confirm.',
+      'group.deleteConfirmLabel': 'Type "{name}" to confirm',
+      'group.deleteConfirm': 'Delete permanently',
+      'group.deleting': 'Deleting…',
       'owner.title': 'Owner profile',
       'owner.optional': 'Optional; editable later under Manage',
       'owner.hint': 'Members see this profile every turn; the owner name is also used for @.',
@@ -951,6 +972,46 @@ window.__ModuleLoader__.load({
         return data.state.owner;
       }
 
+      /** Delete the selected group after the host verifies its full name. @returns {Promise<object>} result. */
+      async function deleteGroup() {
+        if (state.group === null) throw new Error('没有选中的群。');
+        if (state.busy || state.activeTurn !== null) {
+          throw new Error('正在生成，请先停止当前回应再删除。');
+        }
+        const response = await fetch('api/groupchat.group-delete', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ groupId: state.group.id, confirmName: state.group.name }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const data = await response.json();
+        const remaining = state.groups.filter((group) => group.id !== state.group.id);
+        writeSelected(null);
+        emit({
+          groups: remaining,
+          selectedId: null,
+          group: null,
+          owner: defaultOwner(),
+          members: [],
+          messages: [],
+          notices: [],
+          totals: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+          foldedCount: 0,
+          pinnedCount: 0,
+          supersededCount: 0,
+          latestMessageId: null,
+          latestMemberMessageId: null,
+          activeTurn: null,
+          streaming: null,
+          busy: false,
+          actionError: null,
+          actionNotice: null,
+        });
+        await load(remaining[0]?.id ?? null);
+        return data;
+      }
+
       /** @param {object} member - member fields, with memberId to edit. @returns {Promise<object>} saved member. */
       async function saveMember(member) {
         if (state.group === null) throw new Error('没有选中的群。');
@@ -1037,6 +1098,7 @@ window.__ModuleLoader__.load({
         saveGroup,
         saveOwner,
         saveMember,
+        deleteGroup,
         createGroup,
         exportMarkdown,
         loadModels,
@@ -1836,6 +1898,7 @@ window.__ModuleLoader__.load({
       }, [store]);
       useEffect(() => {
         setShowFolded(false);
+        setDrawer(null);
       }, [state.group?.id]);
       useEffect(() => {
         if (state.activeTurn === null || state.busy) return undefined;
@@ -2163,6 +2226,98 @@ window.__ModuleLoader__.load({
             saving ? t('common.saving') : t('common.save'),
           ),
         ),
+        h('div', { className: 'mgc-dangerZone' }, h(DeleteGroupCard, { state, t, store })),
+      );
+    }
+
+    /**
+     * Dangerous group deletion, gated by typing the exact group name.
+     * @param {{state: object, t: object, store: object}} props - deletion inputs.
+     * @returns {any} element.
+     */
+    function DeleteGroupCard({ state, t, store }) {
+      const group = state.group;
+      const busy = state.busy || state.activeTurn !== null;
+      const inputId = useRef(`mgc-delete-${Math.random().toString(36).slice(2, 7)}`).current;
+      const [confirming, setConfirming] = useState(false);
+      const [typed, setTyped] = useState('');
+      const [deleting, setDeleting] = useState(false);
+      const [error, setError] = useState(null);
+      const remove = async () => {
+        if (typed !== group.name) return;
+        setDeleting(true);
+        setError(null);
+        try {
+          await store.deleteGroup();
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setDeleting(false);
+        }
+      };
+      return h(
+        'div',
+        null,
+        h('h4', { className: 'mgc-dangerTitle' }, t('group.deleteTitle')),
+        h('p', { className: 'mgc-dangerDesc' }, t('group.deleteDesc')),
+        busy ? h('p', { className: 'mgc-warnText' }, t('group.deleteBusy')) : null,
+        confirming
+          ? h(
+              'div',
+              { className: 'mgc-deleteConfirm' },
+              h('p', { className: 'mgc-dangerWarning' }, t('group.deleteWarning')),
+              h('label', { className: 'mgc-label', htmlFor: inputId }, t('group.deleteConfirmLabel', { name: group.name })),
+              h('input', {
+                id: inputId,
+                className: 'mgc-input',
+                value: typed,
+                onChange: (event) => setTyped(event.target.value),
+                placeholder: group.name,
+                autoFocus: true,
+                spellCheck: false,
+              }),
+              error !== null ? h('p', { className: 'mgc-error', style: { marginTop: '8px' } }, error) : null,
+              h(
+                'div',
+                { className: 'mgc-formActions' },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mgc-btn',
+                    disabled: deleting,
+                    onClick: () => {
+                      setConfirming(false);
+                      setTyped('');
+                      setError(null);
+                    },
+                  },
+                  t('common.cancel'),
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mgc-btn mgc-btnDanger',
+                    disabled: typed !== group.name || deleting,
+                    onClick: remove,
+                  },
+                  deleting ? t('group.deleting') : t('group.deleteConfirm'),
+                ),
+              ),
+            )
+          : h(
+              'button',
+              {
+                type: 'button',
+                className: 'mgc-btn mgc-btnDanger',
+                disabled: busy,
+                onClick: () => {
+                  setConfirming(true);
+                  setError(null);
+                },
+              },
+              t('group.deleteButton'),
+            ),
       );
     }
 

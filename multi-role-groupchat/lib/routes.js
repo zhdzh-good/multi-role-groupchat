@@ -36,6 +36,7 @@ export function registerRoutes(ctx, store) {
   register('/api/groupchat.models', ['GET'], () => handleModels(ctx));
   register('/api/groupchat.group-create', ['POST'], (request) => handleGroupCreate(store, request));
   register('/api/groupchat.group-update', ['POST'], (request) => handleGroupUpdate(store, request));
+  register('/api/groupchat.group-delete', ['POST'], (request) => handleGroupDelete(store, request));
   register('/api/groupchat.member-save', ['POST'], (request) => handleMemberSave(store, request));
   register('/api/groupchat.send', ['POST'], (request) => handleSend(ctx, store, request));
   register('/api/groupchat.stop', ['POST'], (request) => handleStop(store, request));
@@ -206,6 +207,23 @@ async function handleGroupUpdate(store, request) {
     model: body.model,
   });
   return json({ state: await store.stateView(body.groupId) });
+}
+
+/**
+ * POST delete one group after its full name is supplied as confirmation.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} deletion result.
+ */
+async function handleGroupDelete(store, request) {
+  const body = await readBody(request);
+  if (typeof body.groupId !== 'string') throw new GroupChatError('缺少 groupId。');
+  const live = await store.load(body.groupId);
+  if (typeof body.confirmName !== 'string' || body.confirmName !== live.group.name) {
+    throw new GroupChatError('群名不匹配，未删除。请输入完整群名确认。', 400, 'groupchat/confirm-mismatch');
+  }
+  await store.deleteGroup(body.groupId);
+  return json({ deleted: true, groupId: body.groupId });
 }
 
 /**
