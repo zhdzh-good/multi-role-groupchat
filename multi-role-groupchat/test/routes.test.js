@@ -165,6 +165,9 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   const afterRewrite = rewriteEvents.find((event) => event.type === 'state');
   assert.equal(afterRewrite.state.messages.length, 4);
   assert.equal(afterRewrite.state.supersededCount, 1);
+  assert.equal(afterRewrite.state.pinnedCount, 1, 'a pinned reply stays pinned through rewrite');
+  assert.equal(afterRewrite.state.messages.at(-1).pinned, true);
+  assert.notEqual(afterRewrite.state.messages.at(-1).id, latest);
 
   const exported = await call(routes, '/api/groupchat.export', { body: { groupId, includeHistory: true } });
   assert.equal(exported.status, 200);

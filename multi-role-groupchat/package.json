@@ -33,5 +33,8 @@
         "@deepseek-ai/dsh-client-ui-settings"
       ]
     }
+  },
+  "scripts": {
+    "test": "node --test test/"
   }
 }

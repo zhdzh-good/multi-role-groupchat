@@ -54,9 +54,21 @@ export/script.md
 
 ```bash
 cd multi-role-groupchat
-node --test test/          # 24 个确定性测试（协议、编排、存储、路由）
-node --check client.js     # 浏览器模块语法
+npm test                    # 32 个确定性测试（协议、编排、存储、路由、稳定性）
+node --check client.js      # 浏览器模块语法
 ```
+
+稳定性压测默认 80 轮随机对话；可以调参跑更久：
+
+```bash
+GROUPCHAT_STRESS_TURNS=500 \
+GROUPCHAT_STRESS_SEED=20251025 \
+GROUPCHAT_STRESS_DEPTH=2 \
+GROUPCHAT_STRESS_MENTIONS=2 \
+node --test --test-name-pattern=randomized test/stability.test.js
+```
+
+已跑过 500 轮 + 4 组不同深度/提及上限/种子的 300 轮组合，检查：生成次数上限、接话不连续同人、`replyIndex` 连续、`replyTo` 链、`@群主` 即停、钉住上限、折叠计数、token 累计、JSONL 唯一性、每 10 轮重启重放一致、并发发送 409、单群停止不影响其他群、200 条消息重放与截断行恢复。
 
 测试覆盖：`@` 精确匹配 / 未知忽略 / 自我忽略、生成上限、轮转与排除上一位、历史折叠与钉住、事件重放、重写、预算暂停、存储重载与截断行、HTTP 路由与 NDJSON 流。
 
@@ -75,5 +87,6 @@ plugin_manager action=install_bundle target=/home/zqy/桌面/plugin/multi-role-g
 - 「停止」保留已生成的部分在界面上，但不写入有效消息；重新加载后只看到已完成的回复。
 - 重写只替换目标那一条，不继续触发接话链。
 - 预算按 provider 返回的 usage 累计；不同 provider 的缓存字段口径可能不同。
+- 钉住的消息会按计划书移到 prompt 前部，因此“钉住一条旧消息”会改变此前的缓存前缀；未钉住的线性对话前缀保持稳定。
 - 多标签页之间没有实时推送；面板重新挂载或生成中轮询时同步。切换面板不会中断进行中的生成，但关闭页面会中断。
 - 浏览器端的视觉与交互（主题、深浅色、窄屏）已按宿主 token 编写，但本环境无法截图验证；交付时只声明静态与 Host/Client 接线验证结果。
