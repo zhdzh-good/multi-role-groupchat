@@ -6,7 +6,7 @@
  * no public route and no second server.
  */
 
-import { budgetStop, formatTranscript, normalizeReply, parseMentions, speakerName } from './protocol.js';
+import { budgetStop, formatTranscript, normalizeReply, ownerDisplayName, parseMentions, speakerName } from './protocol.js';
 import { createGenerator } from './generate.js';
 import { GroupChatError, makeId } from './store.js';
 import { runTurn } from './turn.js';
@@ -200,6 +200,7 @@ async function handleGroupUpdate(store, request) {
   await store.updateGroup(body.groupId, {
     name: body.name,
     brief: body.brief,
+    owner: body.owner,
     policy: body.policy,
     budget: body.budget,
     model: body.model,
@@ -360,12 +361,17 @@ async function handleRewrite(ctx, store, request) {
       activeMessages: activeBefore,
       sourceUserText: source?.text ?? '（没有找到触发这条回应的群主消息）',
       replyIndex,
-      previousName: previous === undefined ? '群主' : speakerName(previous, live.members),
+      previousName: previous === undefined
+        ? ownerDisplayName(live.group)
+        : speakerName(previous, live.members, ownerDisplayName(live.group)),
       signal,
     });
     const text = normalizeReply(result.text, member.name);
     if (text.length === 0) throw new Error(`${member.name} 没有产出内容，旧版本保持不变。`);
-    const mentions = parseMentions(text, live.members, { selfId: member.id });
+    const mentions = parseMentions(text, live.members, {
+      selfId: member.id,
+      ownerName: ownerDisplayName(live.group),
+    });
     const replacement = {
       id: makeId('m'),
       turnId: target.turnId,

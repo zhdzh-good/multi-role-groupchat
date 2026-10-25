@@ -36,6 +36,8 @@ test('create, append, reload, supersede, pin, notice, export', async (t) => {
   assert.equal(live.group.policy.maxHandoffDepth, DEFAULT_POLICY.maxHandoffDepth);
   assert.equal(live.group.budget.maxInputTokens, DEFAULT_BUDGET.maxInputTokens);
   assert.equal(live.members.length, 2);
+  assert.equal(live.group.owner.name, '群主');
+  assert.equal(live.group.owner.setting, '');
   assert.equal(live.members[0].name, '林晚');
   assert.match(live.members[0].core, /电闸/);
 
@@ -187,4 +189,63 @@ test('unknown group and invalid ids are rejected', async (t) => {
   const { store } = await fixture(t);
   await assert.rejects(store.load('g_missing'), (error) => error instanceof GroupChatError && error.status === 404);
   await assert.rejects(store.load('../escape'), (error) => error instanceof GroupChatError && error.status === 400);
+});
+
+
+test('owner profile persists, validates, and labels owner messages', async (t) => {
+  const { store, root } = await fixture(t);
+  const live = await store.createGroup({
+    name: '群主测试',
+    members: [{ name: '甲', core: '' }, { name: '乙', core: '' }],
+  });
+  const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC';
+  await store.updateGroup(live.gid, {
+    owner: {
+      name: '阿明',
+      oneLiner: '每晚都来的人',
+      setting: '你是常客，和甲很熟。',
+      avatar,
+      relations: { [live.members[0].id]: '老熟人' },
+    },
+  });
+  const reloaded = new GroupStore(root);
+  const view = await reloaded.stateView(live.gid);
+  assert.deepEqual(view.owner, {
+    name: '阿明',
+    oneLiner: '每晚都来的人',
+    setting: '你是常客，和甲很熟。',
+    avatar,
+    relations: { [live.members[0].id]: '老熟人' },
+  });
+  await reloaded.appendMessage(live.gid, {
+    id: 'm_owner',
+    turnId: 'm_owner',
+    replyIndex: 0,
+    ts: 10,
+    role: 'user',
+    memberId: null,
+    text: '我来了。',
+    mentions: [],
+    mentionsOwner: false,
+    replyTo: null,
+  });
+  const labeled = await reloaded.stateView(live.gid);
+  assert.equal(labeled.messages[0].memberName, '阿明');
+
+  await assert.rejects(
+    reloaded.updateGroup(live.gid, { owner: { name: '甲' } }),
+    (error) => error instanceof GroupChatError && /重名/.test(error.message),
+  );
+  await assert.rejects(
+    reloaded.updateGroup(live.gid, { owner: { name: 'a b' } }),
+    (error) => error instanceof GroupChatError,
+  );
+  await assert.rejects(
+    reloaded.saveMember(live.gid, { memberId: live.members[1].id, name: '阿明' }),
+    (error) => error instanceof GroupChatError && /群主/.test(error.message),
+  );
+  await assert.rejects(
+    reloaded.updateGroup(live.gid, { owner: { name: '阿明', setting: 'x'.repeat(20001) } }),
+    (error) => error instanceof GroupChatError && /群主设定/.test(error.message),
+  );
 });

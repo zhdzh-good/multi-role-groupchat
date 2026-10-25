@@ -9,6 +9,15 @@
 /** Owner display name reserved by the plan. */
 export const OWNER_NAME = '群主';
 
+/** Default owner profile; old groups without an `owner` field load as this. */
+export const DEFAULT_OWNER = Object.freeze({
+  name: OWNER_NAME,
+  oneLiner: '',
+  setting: '',
+  avatar: null,
+  relations: Object.freeze({}),
+});
+
 /** Default group policy from the implementation plan. */
 export const DEFAULT_POLICY = Object.freeze({
   replyMode: 'mention-or-rotate',
@@ -52,7 +61,8 @@ export const SETTING_LIMITS = Object.freeze({ core: 4000, extended: 8000 });
  *
  * @param {string} text - message body.
  * @param {Array<{id: string, name: string}>} members - current members.
- * @param {{selfId?: string|null}} [options] - speaking member, ignored as a target.
+ * @param {{selfId?: string|null, ownerName?: string}} [options] - speaking member
+ *   (ignored as a target) and the owner's custom display name.
  * @returns {{memberIds: string[], owner: boolean}} routing result.
  */
 export function parseMentions(text, members, options = {}) {
@@ -62,12 +72,16 @@ export function parseMentions(text, members, options = {}) {
     byName.set(member.name, member.id);
   }
   const names = [...byName.keys()].sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
+  const ownerNames = new Set([OWNER_NAME]);
+  if (typeof options.ownerName === 'string' && options.ownerName.trim().length > 0) {
+    ownerNames.add(options.ownerName.trim());
+  }
   const memberIds = [];
   let owner = false;
   const source = typeof text === 'string' ? text : '';
   for (const match of source.matchAll(MENTION_PATTERN)) {
     const candidate = match[1];
-    if (candidate === OWNER_NAME) {
+    if (ownerNames.has(candidate)) {
       owner = true;
       continue;
     }
@@ -168,8 +182,8 @@ export function selectHistory(activeMessages, policy, excludeId = null) {
  * @param {Array<{id: string, name: string}>} members - current members.
  * @returns {string} prompt line.
  */
-export function historyLine(message, members) {
-  return `[${speakerName(message, members)}] ${message.text}`;
+export function historyLine(message, members, ownerName = OWNER_NAME) {
+  return `[${speakerName(message, members, ownerName)}] ${message.text}`;
 }
 
 /**
@@ -178,8 +192,8 @@ export function historyLine(message, members) {
  * @param {Array<{id: string, name: string}>} members - current members.
  * @returns {string} display name.
  */
-export function speakerName(message, members) {
-  if (message.role === 'user') return OWNER_NAME;
+export function speakerName(message, members, ownerName = OWNER_NAME) {
+  if (message.role === 'user') return ownerName;
   return members.find((member) => member.id === message.memberId)?.name ?? '已离开的成员';
 }
 
@@ -196,6 +210,20 @@ export function buildSystemPrefix(group, members) {
     '{maxReplyChars}',
     String(clampInt(group?.policy?.maxReplyChars, 20, 4000, DEFAULT_POLICY.maxReplyChars)),
   );
+  const owner = ownerProfile(group);
+  const ownerRelations = Object.entries(owner.relations ?? {})
+    .map(([otherId, text]) => {
+      const other = members.find((candidate) => candidate.id === otherId);
+      return other === undefined ? null : `${other.name}：${text}`;
+    })
+    .filter((entry) => entry !== null);
+  const ownerLines = [
+    '群主档案：',
+    `- 名字：${owner.name}`,
+    `- 一句话：${owner.oneLiner.trim().length > 0 ? owner.oneLiner.trim() : '（未填写）'}`,
+    `- 设定：${owner.setting.trim().length > 0 ? owner.setting.trim() : '（未填写）'}`,
+  ];
+  if (ownerRelations.length > 0) ownerLines.push(`- 与成员关系：${ownerRelations.join('；')}`);
   const profiles = members.map((member) => {
     const oneLiner = typeof member.public?.oneLiner === 'string' && member.public.oneLiner.trim().length > 0
       ? member.public.oneLiner.trim()
@@ -211,6 +239,8 @@ export function buildSystemPrefix(group, members) {
   });
   return [
     `群简介：${typeof group?.brief === 'string' && group.brief.trim().length > 0 ? group.brief.trim() : '（未填写）'}`,
+    '',
+    ...ownerLines,
     '',
     '成员公开档案：',
     ...(profiles.length === 0 ? ['（无）'] : profiles),
@@ -237,9 +267,10 @@ export function buildSystemPrefix(group, members) {
 export function buildPrompt(input) {
   const { group, members, member, sourceUserText, replyIndex, previousName, excludeId = null } = input;
   const selection = selectHistory(input.activeMessages, group.policy, excludeId);
+  const owner = ownerProfile(group);
   const messages = selection.inPrompt.map((message) => ({
     role: 'user',
-    content: [{ type: 'text', text: historyLine(message, members) }],
+    content: [{ type: 'text', text: historyLine(message, members, owner.name) }],
   }));
   const tail = [
     `=== 你现在扮演：${member.name} ===`,
@@ -248,11 +279,12 @@ export function buildPrompt(input) {
   if (member.extendedEnabled === true && typeof member.extended === 'string' && member.extended.trim().length > 0) {
     tail.push('=== 扩展背景 ===', member.extended.trim());
   }
+  const ownerMention = owner.name === OWNER_NAME ? `@${OWNER_NAME}` : `@${OWNER_NAME}（或 @${owner.name}）`;
   tail.push(
     '=== 本次回应 ===',
-    `${OWNER_NAME}刚说：${sourceUserText}`,
+    `${owner.name}刚说：${sourceUserText}`,
     `这是本次发言的第 ${replyIndex} 条回应；上一条来自 ${previousName}。`,
-    `直接回应，或用 @名字 把话交给别人；@${OWNER_NAME} 表示等对方回答。`,
+    `直接回应，或用 @名字 把话交给别人；${ownerMention} 表示等对方回答。`,
   );
   messages.push({ role: 'user', content: [{ type: 'text', text: tail.join('\n\n') }] });
   return { system: buildSystemPrefix(group, members), messages, folded: selection.folded };
@@ -415,6 +447,52 @@ export function normalizeReply(text, name) {
 }
 
 /**
+ * Read the owner profile from a group, falling back to the reserved default.
+ * @param {object} group - group document.
+ * @returns {{name: string, oneLiner: string, setting: string, avatar: string|null, relations: Record<string,string>}} owner.
+ */
+export function ownerProfile(group) {
+  const raw = group?.owner;
+  const name = typeof raw?.name === 'string' && raw.name.trim().length > 0 ? raw.name.trim() : OWNER_NAME;
+  return {
+    name,
+    oneLiner: typeof raw?.oneLiner === 'string' ? raw.oneLiner : '',
+    setting: typeof raw?.setting === 'string' ? raw.setting : '',
+    avatar: typeof raw?.avatar === 'string' && raw.avatar.length > 0 ? raw.avatar : null,
+    relations: raw?.relations !== null && typeof raw?.relations === 'object' && !Array.isArray(raw.relations)
+      ? raw.relations
+      : {},
+  };
+}
+
+/**
+ * Display name used for the owner in history, prompts, exports, and the UI.
+ * @param {object} group - group document.
+ * @returns {string} owner display name.
+ */
+export function ownerDisplayName(group) {
+  return ownerProfile(group).name;
+}
+
+/**
+ * Validate the owner's display name. The reserved `群主` stays allowed, while a
+ * custom name must not collide with a member or contain routing punctuation.
+ * @param {string} rawName - proposed name.
+ * @param {Array<{name: string}>} members - current members.
+ * @returns {{ok: true, name: string}|{ok: false, message: string}} validation.
+ */
+export function validateOwnerName(rawName, members) {
+  const trimmed = typeof rawName === 'string' ? rawName.trim() : '';
+  const name = trimmed.length === 0 ? OWNER_NAME : trimmed;
+  if ([...name].length > 16) return { ok: false, message: '群主名最多 16 个字符，否则 @ 解析会不可靠。' };
+  if (/[\s@，。！？、,.!?:：;；]/.test(name)) return { ok: false, message: '群主名不能包含空白、@ 或标点。' };
+  if (members.some((member) => member.name === name)) {
+    return { ok: false, message: `已有成员叫“${name}”，群主与成员不能重名。` };
+  }
+  return { ok: true, name };
+}
+
+/**
  * Validate a member display name for `@` routing.
  * @param {string} rawName - proposed name.
  * @param {Array<{id: string, name: string}>} members - current members.
@@ -445,9 +523,11 @@ export function validateMemberName(rawName, members, ownId = null) {
  * @returns {string} Markdown document.
  */
 export function formatTranscript({ group, members, state, includeHistory = false, exportedAt = Math.floor(Date.now() / 1000) }) {
+  const owner = ownerProfile(group);
   const lines = [`# ${group.name}`, ''];
   if (typeof group.brief === 'string' && group.brief.trim().length > 0) lines.push(`> ${group.brief.trim()}`, '');
   lines.push(
+    `- 群主：${owner.name}`,
     `- 成员：${members.map((member) => member.name).join('、') || '（无）'}`,
     `- 导出时间：${new Date(exportedAt * 1000).toISOString()}`,
     `- Token 累计：输入 ${state.totals.inputTokens.toLocaleString('en-US')} · 输出 ${state.totals.outputTokens.toLocaleString('en-US')} · 缓存读 ${state.totals.cacheReadTokens.toLocaleString('en-US')} · 缓存写 ${state.totals.cacheWriteTokens.toLocaleString('en-US')}`,
@@ -462,7 +542,7 @@ export function formatTranscript({ group, members, state, includeHistory = false
       turn += 1;
       lastTurnId = message.turnId;
     }
-    const speaker = speakerName(message, members);
+    const speaker = speakerName(message, members, owner.name);
     const time = new Date(message.ts * 1000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, 'Z');
     lines.push(`### 第 ${turn} 轮 · ${speaker}`, '', `_${time}_`, '', message.text, '');
     if (message.usage !== null) {
@@ -478,7 +558,7 @@ export function formatTranscript({ group, members, state, includeHistory = false
     if (superseded.length > 0) {
       lines.push('## 历史版本', '');
       for (const message of superseded) {
-        const speaker = speakerName(message, members);
+        const speaker = speakerName(message, members, owner.name);
         const time = new Date(message.ts * 1000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, 'Z');
         lines.push(`### ${speaker} · 已被重写`, '', `_${time}_`, '', message.text, '');
       }

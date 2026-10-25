@@ -107,6 +107,16 @@ test('a member mention hands over, and @群主 ends the turn immediately', async
   assert.equal(outcome.reason, 'owner');
 });
 
+test('a custom owner name is a valid handoff target', async () => {
+  const io = harness({ userText: '@甲 你先说', texts: ['@阿明 我说完了。', '不该出现'] });
+  io.group.owner = { name: '阿明', oneLiner: '常客', setting: '', avatar: null, relations: {} };
+  const outcome = await runTurn(io);
+  assert.equal(outcome.generated, 1);
+  assert.equal(outcome.reason, 'owner');
+  assert.equal(io.messages.at(-1).mentionsOwner, true);
+  assert.equal(io.calls[0].previousName, '阿明');
+});
+
 test('unknown @ names keep rotation routing and never throw', async () => {
   const io = harness({ userText: '@无名 在吗？', texts: ['一', '二', '三'] });
   const outcome = await runTurn(io);

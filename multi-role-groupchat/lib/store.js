@@ -18,16 +18,20 @@ import path from 'node:path';
 import {
   DEFAULT_BUDGET,
   DEFAULT_POLICY,
+  OWNER_NAME,
   SETTING_LIMITS,
   applyEvent,
   createState,
   normalizeBudget,
   normalizePolicy,
   normalizeUsage,
+  ownerDisplayName,
+  ownerProfile,
   replayEvents,
   selectHistory,
   speakerName,
   validateMemberName,
+  validateOwnerName,
 } from './protocol.js';
 
 const GROUP_ID = /^g_[A-Za-z0-9]{4,40}$/;
@@ -240,11 +244,13 @@ export class GroupStore {
     }
     const gid = makeId('g');
     const now = Math.floor(Date.now() / 1000);
+    const owner = normalizeOwner(input.owner ?? {}, members.map((member) => ({ id: member.card.id, name: member.card.name })));
     const group = {
       schemaVersion: SCHEMA_VERSION,
       id: gid,
       name,
       brief,
+      owner,
       memberIds: members.map((member) => member.card.id),
       policy: { ...DEFAULT_POLICY },
       model: null,
@@ -287,6 +293,10 @@ export class GroupStore {
       if ([...patch.brief].length > 2000) throw new GroupChatError('群简介最多 2000 个字符。');
       group.brief = patch.brief;
     }
+    if (patch?.owner !== undefined) {
+      const candidate = { ...ownerProfile(group), ...(patch.owner ?? {}) };
+      group.owner = normalizeOwner(candidate, live.members);
+    }
     if (patch?.policy !== undefined) group.policy = normalizePolicy(patch.policy);
     if (patch?.budget !== undefined) group.budget = normalizeBudget(patch.budget);
     if (patch?.model !== undefined) group.model = normalizeModel(patch.model);
@@ -314,6 +324,10 @@ export class GroupStore {
     const others = live.members.filter((member) => member.id !== memberId);
     const validation = validateMemberName(input?.name ?? existing?.name, others, memberId);
     if (!validation.ok) throw new GroupChatError(validation.message);
+    const ownerName = ownerDisplayName(live.group);
+    if (ownerName !== OWNER_NAME && validation.name === ownerName) {
+      throw new GroupChatError(`群主已经叫“${ownerName}”，成员不能与群主重名。`);
+    }
     const oneLiner = typeof input?.oneLiner === 'string' ? input.oneLiner.trim() : existing?.public?.oneLiner ?? '';
     if ([...oneLiner].length > 400) throw new GroupChatError('一句话档案最多 400 个字符。');
     const relations = {};
@@ -536,6 +550,8 @@ export class GroupStore {
  */
 export function buildStateView(live, turn) {
   const selection = selectHistory(live.state.active, live.group.policy);
+  const ownerName = ownerDisplayName(live.group);
+  const owner = ownerProfile(live.group);
   const folded = new Set(selection.folded.map((message) => message.id));
   let turnNumber = 0;
   let turnId = null;
@@ -546,7 +562,7 @@ export function buildStateView(live, turn) {
     }
     return {
       ...message,
-      memberName: speakerName(message, live.members),
+      memberName: speakerName(message, live.members, ownerName),
       folded: folded.has(message.id),
       turn: turnNumber,
     };
@@ -555,6 +571,7 @@ export function buildStateView(live, turn) {
   const pinnedCount = live.state.active.filter((message) => message.pinned).length;
   return {
     group: live.group,
+    owner,
     members: live.members.map((member) => ({
       id: member.id,
       name: member.name,
@@ -599,12 +616,58 @@ function normalizeGroup(raw, gid) {
     name: typeof raw.name === 'string' && raw.name.trim().length > 0 ? raw.name : '未命名群聊',
     brief: typeof raw.brief === 'string' ? raw.brief : '',
     memberIds,
+    owner: normalizeOwner(raw.owner ?? {}, null),
     policy: normalizePolicy(raw.policy),
     model: normalizeModel(raw.model),
     budget: normalizeBudget(raw.budget),
     createdAt: Number.isFinite(raw.createdAt) ? raw.createdAt : 0,
     updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0,
   };
+}
+
+/**
+ * Normalize the owner profile.
+ *
+ * With a member list this is the write path: invalid names and oversize fields
+ * are rejected with a user-facing message. Without it (loading existing data)
+ * the name degrades to the reserved `群主` instead of making the group
+ * unreadable; long settings are preserved for the user to shorten.
+ *
+ * @param {unknown} raw - owner fields.
+ * @param {Array<{id: string, name: string}>|null} members - members for collision checks, or null on load.
+ * @returns {{name: string, oneLiner: string, setting: string, avatar: string|null, relations: Record<string,string>}} owner.
+ */
+export function normalizeOwner(raw, members = null) {
+  const source = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const proposed = typeof source.name === 'string' ? source.name.trim() : '';
+  let name = proposed.length === 0 ? OWNER_NAME : proposed;
+  if (members !== null) {
+    const validation = validateOwnerName(name, members);
+    if (!validation.ok) throw new GroupChatError(validation.message);
+    name = validation.name;
+  } else if ([...name].length > 16 || /[\s@，。！？、,.!?:：;；]/.test(name)) {
+    name = OWNER_NAME;
+  }
+  const oneLiner = typeof source.oneLiner === 'string' ? source.oneLiner.trim() : '';
+  if (members !== null && [...oneLiner].length > 400) throw new GroupChatError('群主一句话档案最多 400 个字符。');
+  const setting = typeof source.setting === 'string' ? source.setting : '';
+  if (members !== null && [...setting].length > MAX_SETTING_CHARS) {
+    throw new GroupChatError(`群主设定最多 ${MAX_SETTING_CHARS} 个字符。`);
+  }
+  const avatar = typeof source.avatar === 'string' && source.avatar.length > 0 ? source.avatar : null;
+  const relations = {};
+  if (source.relations !== null && typeof source.relations === 'object' && !Array.isArray(source.relations)) {
+    for (const [memberId, text] of Object.entries(source.relations)) {
+      if (typeof text !== 'string' || text.trim().length === 0) continue;
+      if (members !== null && !members.some((member) => member.id === memberId)) continue;
+      if ([...text].length > 200) {
+        if (members !== null) throw new GroupChatError('单条群主关系描述最多 200 个字符。');
+        continue;
+      }
+      relations[memberId] = text.trim();
+    }
+  }
+  return { name, oneLiner, setting, avatar, relations };
 }
 
 /**

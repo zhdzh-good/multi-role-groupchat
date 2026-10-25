@@ -1,9 +1,9 @@
 {
   "name": "@zhdzh-good/multi-role-groupchat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Multi-role group chat panel: an owner and two or three AI members, with @ routing, handoff, pins, rewrites, token budgets, and Markdown export.",
+  "description": "Multi-role group chat panel with an owner profile, @ routing, handoffs, pins, rewrites, token budgets, and Markdown export.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

@@ -196,3 +196,39 @@ test('routes reject invalid input without leaking internals', async (t) => {
   const emptyText = await call(routes, '/api/groupchat.send', { body: { groupId: 'g_missing', text: '' } });
   assert.equal(emptyText.status, 400);
 });
+
+
+test('owner settings travel through the route and a custom owner name stops the turn', async (t) => {
+  const { routes } = await fixture(t, { texts: ['@阿明 我说完了。', '不该出现'] });
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: {
+      name: '群主路由测试',
+      members: [{ name: '甲', core: '甲' }, { name: '乙', core: '乙' }],
+    },
+  });
+  const groupId = created.json.groupId;
+  const owner = {
+    name: '阿明',
+    oneLiner: '常客',
+    setting: '你是每晚都来的客人。',
+    avatar: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC',
+    relations: { [created.json.state.members[0].id]: '熟人' },
+  };
+  const updated = await call(routes, '/api/groupchat.group-update', { body: { groupId, owner } });
+  assert.equal(updated.status, 200);
+  assert.deepEqual(updated.json.state.owner, owner);
+
+  const sent = await call(routes, '/api/groupchat.send', { body: { groupId, text: '@甲 你先说' } });
+  assert.equal(sent.status, 200);
+  const events = ndjson(sent.text);
+  const messages = events.filter((event) => event.type === 'message').map((event) => event.message);
+  assert.equal(messages.length, 2, 'owner message plus exactly one reply');
+  assert.equal(messages[1].mentionsOwner, true);
+  const finalState = events.find((event) => event.type === 'state');
+  assert.equal(finalState.state.owner.name, '阿明');
+  assert.equal(finalState.state.messages[0].memberName, '阿明');
+
+  const exported = await call(routes, '/api/groupchat.export', { body: { groupId } });
+  assert.match(exported.json.markdown, /- 群主：阿明/);
+  assert.match(exported.json.markdown, /### 第 1 轮 · 阿明/);
+});

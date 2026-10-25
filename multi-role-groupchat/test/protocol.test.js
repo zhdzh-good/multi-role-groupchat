@@ -12,10 +12,14 @@ import {
   generationCap,
   normalizeReply,
   parseMentions,
+  ownerDisplayName,
+  ownerProfile,
   pickRotation,
   replayEvents,
   selectHistory,
+  speakerName,
   validateMemberName,
+  validateOwnerName,
 } from '../lib/protocol.js';
 
 const members = [
@@ -225,4 +229,75 @@ test('markdown export numbers turns, names speakers, and can append history', ()
   assert.match(markdown, /## 历史版本/);
   assert.match(markdown, /旧版本/);
   assert.ok(!markdown.includes('林晚：后门'), 'speaker prefixes stay out of the body');
+});
+
+
+test('owner profile is injected into the prompt, labels, and export', () => {
+  const group = {
+    name: '旧城书店的晚上',
+    brief: '停电。',
+    owner: {
+      name: '阿明',
+      oneLiner: '每晚都来书店的常客',
+      setting: '你是常客，和店主很熟，但不清楚停电的原因。',
+      relations: { c_zhou: '一起修过电路' },
+    },
+    policy: { ...DEFAULT_POLICY, maxReplyChars: 300 },
+    budget: { ...DEFAULT_BUDGET },
+  };
+  const ownerMessage = {
+    id: 'm_1',
+    turnId: 'm_1',
+    ts: 1792890000,
+    role: 'user',
+    memberId: null,
+    text: '门怎么锁了？',
+    pinned: false,
+  };
+  const prompt = buildPrompt({
+    group,
+    members,
+    activeMessages: [ownerMessage],
+    member: { id: 'c_lin', name: '林晚', core: '店主', extended: '', extendedEnabled: false, public: { oneLiner: '店主', relations: {} } },
+    sourceUserText: '门怎么锁了？',
+    replyIndex: 1,
+    previousName: '阿明',
+  });
+  assert.match(prompt.system, /群主档案：/);
+  assert.match(prompt.system, /- 名字：阿明/);
+  assert.match(prompt.system, /- 设定：你是常客/);
+  assert.match(prompt.system, /- 与成员关系：周野：一起修过电路/);
+  assert.match(prompt.messages[0].content[0].text, /^\[阿明\] 门怎么锁了？$/);
+  const tail = prompt.messages.at(-1).content[0].text;
+  assert.match(tail, /阿明刚说：门怎么锁了？/);
+  assert.match(tail, /@群主（或 @阿明） 表示等对方回答/);
+  assert.equal(ownerDisplayName(group), '阿明');
+  assert.deepEqual(ownerProfile(group).relations, { c_zhou: '一起修过电路' });
+  assert.equal(speakerName(ownerMessage, members, '阿明'), '阿明');
+
+  assert.deepEqual(parseMentions('@阿明 你说呢', members, { ownerName: '阿明' }), { memberIds: [], owner: true });
+  assert.deepEqual(parseMentions('@群主 你说呢', members, { ownerName: '阿明' }), { memberIds: [], owner: true });
+  assert.deepEqual(parseMentions('@阿明 你说呢', members), { memberIds: [], owner: false });
+
+  const state = createState();
+  applyEvent(state, {
+    type: 'message',
+    id: 'm_1',
+    turnId: 'm_1',
+    ts: 1792890000,
+    role: 'user',
+    text: '门怎么锁了？',
+  });
+  const markdown = formatTranscript({ group, members, state });
+  assert.match(markdown, /- 群主：阿明/);
+  assert.match(markdown, /### 第 1 轮 · 阿明/);
+});
+
+test('owner names stay unique against members and safe for @ routing', () => {
+  assert.deepEqual(validateOwnerName('群主', members), { ok: true, name: '群主' });
+  assert.deepEqual(validateOwnerName('', members), { ok: true, name: '群主' });
+  assert.deepEqual(validateOwnerName('阿明', members), { ok: true, name: '阿明' });
+  assert.equal(validateOwnerName('林晚', members).ok, false);
+  assert.equal(validateOwnerName('a b', []).ok, false);
+  assert.equal(validateOwnerName('一二三四五六七八九十一二三四五六七', []).ok, false);
 });

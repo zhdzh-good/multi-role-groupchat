@@ -232,6 +232,7 @@ window.__ModuleLoader__.load({
       'header.stop': '停止',
       'header.defaultModel': '默认模型：{model}',
       'messages.owner': '群主',
+      'messages.ownerTag': '群主',
       'messages.pin': '钉住',
       'messages.unpin': '取消钉住',
       'messages.copy': '复制',
@@ -259,6 +260,7 @@ window.__ModuleLoader__.load({
       'manage.title': '群聊管理',
       'manage.close': '关闭',
       'manage.tab.group': '群设置',
+      'manage.tab.owner': '群主',
       'manage.tab.members': '成员',
       'manage.tab.export': '导出',
       'common.save': '保存',
@@ -291,6 +293,20 @@ window.__ModuleLoader__.load({
       'group.policyHint': '保存后立即生效；已生成的消息不受影响。',
       'group.budgetHint': '累计用量达到上限后停止生成，并写入一条提示。设为 0 表示不限制。',
       'group.modelHint': '群级覆盖留空时使用宿主默认；成员还可以再单独覆盖。',
+      'owner.title': '群主档案',
+      'owner.optional': '可选；创建后也能在管理里修改',
+      'owner.hint': '成员每轮都会看到这份档案；群主名字也会用于 @。',
+      'owner.name': '群主显示名',
+      'owner.nameHint': '默认“群主”，可改成角色名；最多 16 字符，且不能与成员重名。',
+      'owner.nameRequired': '群主显示名不能为空。',
+      'owner.oneLiner': '群主一句话档案',
+      'owner.oneLinerPlaceholder': '例如：每晚都来书店的常客',
+      'owner.relations': '群主与成员的关系',
+      'owner.setting': '群主设定（每轮注入）',
+      'owner.settingPlaceholder': '身份、与成员的关系、在意的事、底线；成员会据此和你说话。',
+      'owner.settingHint': '建议 ≤ 4000 字；保存时不会静默截断。',
+      'owner.overLimit': '超出建议长度 {n} 字：仍会保存，但会挤占上下文。',
+      'owner.save': '保存群主档案',
       'members.title': '成员',
       'members.add': '新增成员',
       'members.editing': '编辑 {name}',
@@ -382,6 +398,7 @@ window.__ModuleLoader__.load({
       'header.stop': 'Stop',
       'header.defaultModel': 'Default model: {model}',
       'messages.owner': 'Owner',
+      'messages.ownerTag': 'Owner',
       'messages.pin': 'Pin',
       'messages.unpin': 'Unpin',
       'messages.copy': 'Copy',
@@ -409,6 +426,7 @@ window.__ModuleLoader__.load({
       'manage.title': 'Group management',
       'manage.close': 'Close',
       'manage.tab.group': 'Settings',
+      'manage.tab.owner': 'Owner',
       'manage.tab.members': 'Members',
       'manage.tab.export': 'Export',
       'common.save': 'Save',
@@ -441,6 +459,20 @@ window.__ModuleLoader__.load({
       'group.policyHint': 'Applies immediately; already generated messages are unchanged.',
       'group.budgetHint': 'Generation stops and records a notice once accumulated usage reaches a limit. 0 disables a limit.',
       'group.modelHint': 'Leave the group override empty to follow the Host default; each member can override again.',
+      'owner.title': 'Owner profile',
+      'owner.optional': 'Optional; editable later under Manage',
+      'owner.hint': 'Members see this profile every turn; the owner name is also used for @.',
+      'owner.name': 'Owner display name',
+      'owner.nameHint': 'Defaults to "Owner"; up to 16 characters and must not match a member.',
+      'owner.nameRequired': 'The owner display name cannot be empty.',
+      'owner.oneLiner': 'Owner one-liner',
+      'owner.oneLinerPlaceholder': 'e.g. A regular who comes to the bookshop every night',
+      'owner.relations': 'Owner relationships with members',
+      'owner.setting': 'Owner setting (injected every turn)',
+      'owner.settingPlaceholder': 'Identity, relationships, what matters, and limits. Members respond to this.',
+      'owner.settingHint': '4,000 characters or fewer recommended; saving never truncates silently.',
+      'owner.overLimit': '{n} characters over the recommendation: saving still works, but context shrinks.',
+      'owner.save': 'Save owner profile',
       'members.title': 'Members',
       'members.add': 'Add member',
       'members.editing': 'Editing {name}',
@@ -531,6 +563,11 @@ window.__ModuleLoader__.load({
       return [...(name || '?')][0] ?? '?';
     }
 
+    /** @returns {object} default owner profile shown before a group loads. */
+    function defaultOwner() {
+      return { name: '群主', oneLiner: '', setting: '', avatar: null, relations: {} };
+    }
+
     /** @param {object} response - failed fetch response. @returns {Promise<string>} message. */
     async function errorMessage(response) {
       try {
@@ -556,6 +593,7 @@ window.__ModuleLoader__.load({
         groups: [],
         selectedId: null,
         group: null,
+        owner: defaultOwner(),
         members: [],
         messages: [],
         notices: [],
@@ -615,6 +653,7 @@ window.__ModuleLoader__.load({
         if (selected === null || selected === undefined) {
           emit({
             group: null,
+            owner: defaultOwner(),
             members: [],
             messages: [],
             notices: [],
@@ -631,6 +670,7 @@ window.__ModuleLoader__.load({
         }
         emit({
           group: selected.group,
+          owner: selected.owner ?? defaultOwner(),
           members: selected.members,
           messages: selected.messages,
           notices: selected.notices ?? [],
@@ -699,7 +739,7 @@ window.__ModuleLoader__.load({
         const member = state.members.find((candidate) => candidate.id === message.memberId);
         const next = {
           ...message,
-          memberName: message.memberName ?? (message.role === 'user' ? '群主' : member?.name ?? '成员'),
+          memberName: message.memberName ?? (message.role === 'user' ? state.owner?.name ?? '群主' : member?.name ?? '成员'),
           ...extra,
         };
         if (exists) {
@@ -896,6 +936,21 @@ window.__ModuleLoader__.load({
         return data.state.group;
       }
 
+      /** @param {object} owner - complete owner profile. @returns {Promise<object>} saved owner. */
+      async function saveOwner(owner) {
+        if (state.group === null) throw new Error('没有选中的群。');
+        const response = await fetch('api/groupchat.group-update', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ groupId: state.group.id, owner }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const data = await response.json();
+        applySelected(data.state);
+        return data.state.owner;
+      }
+
       /** @param {object} member - member fields, with memberId to edit. @returns {Promise<object>} saved member. */
       async function saveMember(member) {
         if (state.group === null) throw new Error('没有选中的群。');
@@ -980,6 +1035,7 @@ window.__ModuleLoader__.load({
         rewrite,
         pin,
         saveGroup,
+        saveOwner,
         saveMember,
         createGroup,
         exportMarkdown,
@@ -1082,7 +1138,7 @@ window.__ModuleLoader__.load({
      * @returns {any} element.
      */
     function MentionText({ text, members, ownerName }) {
-      const names = new Set([ownerName, ...members.map((member) => member.name)]);
+      const names = new Set(['群主', ownerName, ...members.map((member) => member.name)]);
       const parts = String(text ?? '').split(/(@[^\s@，。！？、,.!?:：;；]{1,16})/g);
       return h(
         'div',
@@ -1170,14 +1226,16 @@ window.__ModuleLoader__.load({
      * @param {object} props - message and callbacks.
      * @returns {any} element.
      */
-    function MessageRow({ message, members, t, continuation, canRewrite, busy, rewriting, onPin, onRewrite }) {
+    function MessageRow({ message, members, owner: ownerProfile, t, continuation, canRewrite, busy, rewriting, onPin, onRewrite }) {
       const [copied, setCopied] = useState(false);
       const timer = useRef(null);
       useEffect(() => () => clearTimeout(timer.current), []);
-      const owner = message.role === 'user';
+      const isOwner = message.role === 'user';
       const member = members.find((candidate) => candidate.id === message.memberId);
-      const name = owner ? t('messages.owner') : member?.name ?? message.memberName ?? '成员';
-      const color = owner ? null : avatarColor(members, message.memberId);
+      const ownerName = ownerProfile?.name ?? t('messages.owner');
+      const customOwner = isOwner && ownerName !== '群主';
+      const name = isOwner ? (customOwner ? ownerName : t('messages.owner')) : member?.name ?? message.memberName ?? '成员';
+      const color = isOwner ? null : avatarColor(members, message.memberId);
       const usage = message.usage;
       const copy = async () => {
         try {
@@ -1206,7 +1264,12 @@ window.__ModuleLoader__.load({
           className: `mgc-msg${continuation ? ' mgc-msgCont' : ''}${message.folded ? ' mgc-foldMsg' : ''}`,
           'data-message-id': message.id,
         },
-        h(Avatar, { name, color, owner, src: member?.avatar ?? null }),
+        h(Avatar, {
+          name,
+          color,
+          owner: isOwner,
+          src: isOwner ? ownerProfile?.avatar ?? null : member?.avatar ?? null,
+        }),
         h(
           'div',
           { className: 'mgc-body' },
@@ -1214,6 +1277,7 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'mgc-meta' },
             h('span', { className: 'mgc-name' }, name),
+            customOwner ? h('span', { className: 'mgc-tag' }, t('messages.ownerTag')) : null,
             h('span', { className: 'mgc-time' }, fmtTime(message.ts)),
             message.pinned ? h('span', { className: 'mgc-tag mgc-tagPin' }, h(IconPin, { size: 10 }), t('messages.pin')) : null,
             message.folded ? h('span', { className: 'mgc-tag' }, t('messages.foldedTag')) : null,
@@ -1234,7 +1298,7 @@ window.__ModuleLoader__.load({
                 )
               : null,
           ),
-          h(MentionText, { text: message.text, members, ownerName: t('messages.owner') }),
+          h(MentionText, { text: message.text, members, ownerName }),
           h(
             'div',
             { className: 'mgc-actions' },
@@ -1279,7 +1343,7 @@ window.__ModuleLoader__.load({
      * @param {{streaming: object}} props - stream state.
      * @returns {any} element.
      */
-    function TypingRow({ streaming, members }) {
+    function TypingRow({ streaming, members, owner: ownerProfile }) {
       const t = useT();
       const stopped = streaming.stopped === true;
       return h(
@@ -1302,7 +1366,7 @@ window.__ModuleLoader__.load({
               : h('span', { className: 'mgc-typingLabel' }, t('messages.typing', { name: streaming.memberName })),
           ),
           streaming.text.length > 0
-            ? h(MentionText, { text: streaming.text, members, ownerName: t('messages.owner') })
+            ? h(MentionText, { text: streaming.text, members, ownerName: ownerProfile?.name ?? t('messages.owner') })
             : h('div', { className: 'mgc-text' }, h(TypingDots)),
         ),
       );
@@ -1405,6 +1469,7 @@ window.__ModuleLoader__.load({
               key: message.id,
               message,
               members: state.members,
+              owner: state.owner,
               t,
               continuation,
               canRewrite: message.role === 'member'
@@ -1417,7 +1482,12 @@ window.__ModuleLoader__.load({
             });
           }),
           state.streaming !== null
-            ? h(TypingRow, { streaming: state.streaming, members: state.members, key: 'streaming' })
+            ? h(TypingRow, {
+                streaming: state.streaming,
+                members: state.members,
+                owner: state.owner,
+                key: 'streaming',
+              })
             : null,
         ),
       );
@@ -1481,7 +1551,11 @@ window.__ModuleLoader__.load({
           submit();
         }
       };
-      const mentionItems = [...state.members, { id: '__owner__', name: t('messages.owner'), public: { oneLiner: t('composer.owner') } }];
+      const ownerName = state.owner?.name ?? t('messages.owner');
+      const mentionItems = [
+        ...state.members,
+        { id: '__owner__', name: ownerName, avatar: state.owner?.avatar ?? null, public: { oneLiner: t('composer.owner') } },
+      ];
       return h(
         'footer',
         { className: 'mgc-composer' },
@@ -1541,7 +1615,7 @@ window.__ModuleLoader__.load({
                             color: member.id === '__owner__' ? null : avatarColor(state.members, member.id),
                             owner: member.id === '__owner__',
                             small: true,
-                            src: member.id === '__owner__' ? null : member.avatar ?? null,
+                            src: member.id === '__owner__' ? state.owner?.avatar ?? null : member.avatar ?? null,
                           }),
                           h('span', { style: { flex: 1, minWidth: 0 } }, member.name),
                         ),
@@ -2093,6 +2167,66 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Avatar picker with preview and remove control, shared by member and owner forms.
+     * @param {object} props - picker props.
+     * @returns {any} element.
+     */
+    function AvatarField({ t, avatar, name, color = null, owner = false, onChange }) {
+      const [error, setError] = useState(null);
+      const input = useRef(null);
+      const choose = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file === undefined) return;
+        try {
+          onChange(await readAvatarFile(file));
+          setError(null);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
+      };
+      return h(
+        'div',
+        { className: 'mgc-field' },
+        h('div', { className: 'mgc-label' }, t('members.avatar')),
+        h(
+          'div',
+          { className: 'mgc-avatarRow' },
+          h(Avatar, { name: name || '?', color, owner, src: avatar }),
+          h(
+            'div',
+            { style: { minWidth: 0 } },
+            h(
+              'div',
+              { className: 'mgc-avatarActions' },
+              h(
+                'button',
+                { type: 'button', className: 'mgc-btn', onClick: () => input.current?.click() },
+                t('members.avatarChoose'),
+              ),
+              avatar.length === 0
+                ? null
+                : h(
+                    'button',
+                    { type: 'button', className: 'mgc-btn mgc-btnDanger', onClick: () => onChange('') },
+                    t('members.avatarRemove'),
+                  ),
+            ),
+            h('div', { className: 'mgc-avatarHint', style: { marginTop: '6px' } }, t('members.avatarHint')),
+            error !== null ? h('div', { className: 'mgc-error', style: { marginTop: '4px' } }, error) : null,
+          ),
+        ),
+        h('input', {
+          ref: input,
+          type: 'file',
+          accept: 'image/png,image/jpeg,image/webp',
+          style: { display: 'none' },
+          onChange: choose,
+        }),
+      );
+    }
+
+    /**
      * One member edit form.
      * @param {object} props - form inputs.
      * @returns {any} element.
@@ -2101,8 +2235,6 @@ window.__ModuleLoader__.load({
       const others = members.filter((candidate) => candidate.id !== member?.id);
       const [name, setName] = useState(member?.name ?? '');
       const [avatar, setAvatar] = useState(member?.avatar ?? '');
-      const [avatarError, setAvatarError] = useState(null);
-      const avatarInput = useRef(null);
       const [oneLiner, setOneLiner] = useState(member?.public?.oneLiner ?? '');
       const [relations, setRelations] = useState(() => ({ ...(member?.public?.relations ?? {}) }));
       const [core, setCore] = useState(member?.core ?? '');
@@ -2119,17 +2251,6 @@ window.__ModuleLoader__.load({
       }, [store]);
       const coreLength = [...core].length;
       const extendedLength = [...extended].length;
-      const chooseAvatar = async (event) => {
-        const file = event.target.files?.[0];
-        event.target.value = '';
-        if (file === undefined) return;
-        try {
-          setAvatar(await readAvatarFile(file));
-          setAvatarError(null);
-        } catch (reason) {
-          setAvatarError(reason instanceof Error ? reason.message : String(reason));
-        }
-      };
       const save = async () => {
         if (name.trim().length === 0) {
           setError(t('members.name'));
@@ -2163,45 +2284,13 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         null,
-        h(
-          'div',
-          { className: 'mgc-field' },
-          h('div', { className: 'mgc-label' }, t('members.avatar')),
-          h(
-            'div',
-            { className: 'mgc-avatarRow' },
-            h(Avatar, { name: name || '?', color: avatarColor(members, member?.id), src: avatar }),
-            h(
-              'div',
-              { style: { minWidth: 0 } },
-              h(
-                'div',
-                { className: 'mgc-avatarActions' },
-                h(
-                  'button',
-                  { type: 'button', className: 'mgc-btn', onClick: () => avatarInput.current?.click() },
-                  t('members.avatarChoose'),
-                ),
-                avatar.length === 0
-                  ? null
-                  : h(
-                      'button',
-                      { type: 'button', className: 'mgc-btn mgc-btnDanger', onClick: () => setAvatar('') },
-                      t('members.avatarRemove'),
-                    ),
-              ),
-              h('div', { className: 'mgc-avatarHint', style: { marginTop: '6px' } }, t('members.avatarHint')),
-              avatarError !== null ? h('div', { className: 'mgc-error', style: { marginTop: '4px' } }, avatarError) : null,
-            ),
-          ),
-          h('input', {
-            ref: avatarInput,
-            type: 'file',
-            accept: 'image/png,image/jpeg,image/webp',
-            style: { display: 'none' },
-            onChange: chooseAvatar,
-          }),
-        ),
+        h(AvatarField, {
+          t,
+          avatar,
+          name: name || '?',
+          color: avatarColor(members, member?.id),
+          onChange: setAvatar,
+        }),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2322,6 +2411,139 @@ window.__ModuleLoader__.load({
             'button',
             { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: save, disabled: saving },
             saving ? t('common.saving') : member === null ? t('members.addSave') : t('members.save'),
+          ),
+        ),
+      );
+    }
+
+    /**
+     * Owner profile form: public name, one-liner, per-turn setting, relations, avatar.
+     * @param {{state: object, t: object, store: object}} props - owner inputs.
+     * @returns {any} element.
+     */
+    function OwnerForm({ state, t, store }) {
+      const owner = state.owner ?? defaultOwner();
+      const members = state.members;
+      const uid = useRef(`mgc-owner-${Math.random().toString(36).slice(2, 7)}`);
+      const [name, setName] = useState(owner.name ?? '群主');
+      const [avatar, setAvatar] = useState(owner.avatar ?? '');
+      const [oneLiner, setOneLiner] = useState(owner.oneLiner ?? '');
+      const [setting, setSetting] = useState(owner.setting ?? '');
+      const [relations, setRelations] = useState(() => ({ ...(owner.relations ?? {}) }));
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState(null);
+      const [saved, setSaved] = useState(false);
+      const settingLength = [...setting].length;
+      const save = async () => {
+        if (name.trim().length === 0) {
+          setError(t('owner.nameRequired'));
+          return;
+        }
+        setSaving(true);
+        setError(null);
+        setSaved(false);
+        try {
+          await store.saveOwner({
+            name: name.trim(),
+            avatar,
+            oneLiner,
+            setting,
+            relations,
+          });
+          setSaved(true);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setSaving(false);
+        }
+      };
+      return h(
+        'div',
+        null,
+        h('p', { className: 'mgc-hint', style: { margin: '0 0 14px' } }, t('owner.hint')),
+        h(AvatarField, {
+          t,
+          avatar,
+          name: name || '群主',
+          owner: true,
+          onChange: setAvatar,
+        }),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: `${uid.current}-name` }, t('owner.name')),
+          h('input', {
+            id: `${uid.current}-name`,
+            className: 'mgc-input',
+            value: name,
+            maxLength: 16,
+            onChange: (event) => setName(event.target.value),
+            placeholder: t('messages.owner'),
+          }),
+          h('div', { className: 'mgc-hint' }, t('owner.nameHint')),
+        ),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: `${uid.current}-one` }, t('owner.oneLiner')),
+          h('input', {
+            id: `${uid.current}-one`,
+            className: 'mgc-input',
+            value: oneLiner,
+            maxLength: 400,
+            onChange: (event) => setOneLiner(event.target.value),
+            placeholder: t('owner.oneLinerPlaceholder'),
+          }),
+        ),
+        members.length > 0
+          ? h(
+              'div',
+              { className: 'mgc-field' },
+              h('div', { className: 'mgc-label' }, t('owner.relations')),
+              members.map((member) =>
+                h(
+                  'div',
+                  { key: member.id, style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' } },
+                  h('span', { className: 'mgc-hint', style: { width: '96px', flex: 'none' } }, t('members.relationWith', { name: member.name })),
+                  h('input', {
+                    className: 'mgc-input',
+                    value: relations[member.id] ?? '',
+                    maxLength: 200,
+                    onChange: (event) => setRelations((current) => ({ ...current, [member.id]: event.target.value })),
+                    placeholder: t('common.none'),
+                  }),
+                ),
+              ),
+            )
+          : null,
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: `${uid.current}-setting` }, t('owner.setting')),
+          h('textarea', {
+            id: `${uid.current}-setting`,
+            className: 'mgc-textarea2 mgc-textareaCore',
+            value: setting,
+            onChange: (event) => setSetting(event.target.value),
+            placeholder: t('owner.settingPlaceholder'),
+          }),
+          h(
+            'div',
+            { className: settingLength > 4000 ? 'mgc-warnText' : 'mgc-hint' },
+            settingLength > 4000
+              ? t('owner.overLimit', { n: settingLength - 4000 })
+              : `${t('owner.settingHint')} · ${settingLength} / 4000`,
+          ),
+        ),
+        error !== null ? h('p', { className: 'mgc-error' }, error) : null,
+        saved ? h('p', { className: 'mgc-success' }, t('common.saved')) : null,
+        h(
+          'div',
+          { className: 'mgc-formActions' },
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: save, disabled: saving },
+            saving ? t('common.saving') : t('owner.save'),
           ),
         ),
       );
@@ -2506,6 +2728,7 @@ window.__ModuleLoader__.load({
     function ManageDrawer({ state, t, store, tab, onTab, onClose }) {
       const tabs = [
         ['group', t('manage.tab.group')],
+        ['owner', t('manage.tab.owner')],
         ['members', t('manage.tab.members')],
         ['export', t('manage.tab.export')],
       ];
@@ -2544,6 +2767,7 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'mgc-drawerBody' },
           tab === 'group' ? h(GroupSettingsForm, { state, t, store }) : null,
+          tab === 'owner' ? h(OwnerForm, { key: state.group.id, state, t, store }) : null,
           tab === 'members' ? h(MembersEditor, { state, t, store }) : null,
           tab === 'export' ? h(ExportPanel, { state, t, store }) : null,
         ),
@@ -2558,6 +2782,9 @@ window.__ModuleLoader__.load({
     function CreateGroupForm({ store, t, embedded, allowCancel, onCancel, onCreated }) {
       const [name, setName] = useState('');
       const [brief, setBrief] = useState('');
+      const [ownerName, setOwnerName] = useState('');
+      const [ownerOneLiner, setOwnerOneLiner] = useState('');
+      const [ownerSetting, setOwnerSetting] = useState('');
       const [drafts, setDrafts] = useState(() => [
         { key: 'a', name: '', oneLiner: '', core: '' },
         { key: 'b', name: '', oneLiner: '', core: '' },
@@ -2589,6 +2816,11 @@ window.__ModuleLoader__.load({
           await store.createGroup({
             name: name.trim(),
             brief,
+            owner: {
+              name: ownerName.trim() || '群主',
+              oneLiner: ownerOneLiner,
+              setting: ownerSetting,
+            },
             members: drafts.map((draft) => ({
               name: draft.name.trim(),
               oneLiner: draft.oneLiner,
@@ -2631,6 +2863,59 @@ window.__ModuleLoader__.load({
             onChange: (event) => setBrief(event.target.value),
             placeholder: t('create.briefPlaceholder'),
           }),
+        ),
+        h(
+          'div',
+          { className: 'mgc-card' },
+          h(
+            'div',
+            { className: 'mgc-draftHead' },
+            h('span', { className: 'mgc-draftTitle' }, t('owner.title')),
+            h('span', { className: 'mgc-hint' }, t('owner.optional')),
+          ),
+          h(
+            'div',
+            { className: 'mgc-row2' },
+            h(
+              'div',
+              { className: 'mgc-field' },
+              h('label', { className: 'mgc-label', htmlFor: 'mgc-create-owner-name' }, t('owner.name')),
+              h('input', {
+                id: 'mgc-create-owner-name',
+                className: 'mgc-input',
+                value: ownerName,
+                maxLength: 16,
+                onChange: (event) => setOwnerName(event.target.value),
+                placeholder: t('messages.owner'),
+              }),
+            ),
+            h(
+              'div',
+              { className: 'mgc-field' },
+              h('label', { className: 'mgc-label', htmlFor: 'mgc-create-owner-one' }, t('owner.oneLiner')),
+              h('input', {
+                id: 'mgc-create-owner-one',
+                className: 'mgc-input',
+                value: ownerOneLiner,
+                maxLength: 400,
+                onChange: (event) => setOwnerOneLiner(event.target.value),
+                placeholder: t('owner.oneLinerPlaceholder'),
+              }),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'mgc-field', style: { marginBottom: 0 } },
+            h('label', { className: 'mgc-label', htmlFor: 'mgc-create-owner-setting' }, t('owner.setting')),
+            h('textarea', {
+              id: 'mgc-create-owner-setting',
+              className: 'mgc-textarea2',
+              value: ownerSetting,
+              onChange: (event) => setOwnerSetting(event.target.value),
+              placeholder: t('owner.settingPlaceholder'),
+            }),
+            h('div', { className: 'mgc-hint' }, t('owner.settingHint')),
+          ),
         ),
         h('div', { className: 'mgc-label', style: { margin: '6px 0 8px' } }, t('create.members')),
         drafts.map((draft, index) =>
@@ -2808,6 +3093,16 @@ window.__ModuleLoader__.load({
                     h('h2', { className: 'mgc-sectionTitle' }, `${t('manage.tab.group')} · ${state.group.name}`),
                   ),
                   h(GroupSettingsForm, { state, t, store }),
+                ),
+                h(
+                  'div',
+                  { className: 'mgc-section' },
+                  h(
+                    'div',
+                    { className: 'mgc-sectionHead' },
+                    h('h2', { className: 'mgc-sectionTitle' }, `${t('manage.tab.owner')} · ${state.owner?.name ?? t('messages.owner')}`),
+                  ),
+                  h(OwnerForm, { key: state.group.id, state, t, store }),
                 ),
                 h(
                   'div',

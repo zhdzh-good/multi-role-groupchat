@@ -10,6 +10,7 @@ import {
   OWNER_NAME,
   generationCap,
   normalizeReply,
+  ownerDisplayName,
   parseMentions,
   pickRotation,
   speakerName,
@@ -56,8 +57,9 @@ export async function runTurn(input) {
   const policy = group.policy;
   const budget = group.budget ?? {};
   const depth = policy.maxHandoffDepth;
+  const ownerName = ownerDisplayName(group);
 
-  const parsedUser = parseMentions(userText, members);
+  const parsedUser = parseMentions(userText, members, { ownerName });
   const userMessage = {
     id: turnId,
     seq: -1,
@@ -138,7 +140,7 @@ export async function runTurn(input) {
         activeMessages: getActive(),
         sourceUserText: userText,
         replyIndex,
-        previousName: speakerName(last, members),
+        previousName: speakerName(last, members, ownerName),
         signal,
       });
     } catch (error) {
@@ -164,7 +166,7 @@ export async function runTurn(input) {
       emit({ type: 'notice', notice });
       return null;
     }
-    const mentions = parseMentions(text, members, { selfId: member.id });
+    const mentions = parseMentions(text, members, { selfId: member.id, ownerName });
     const message = {
       id: makeId('m'),
       seq: -1,
