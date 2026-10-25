@@ -1,5 +1,7 @@
 # 多角色群聊 · Multi-role Group Chat
 
+> 当前版本：**v1.1.0** · 仓库根目录 [README](../README.md)
+
 一个 DeepSeek Harness Web GUI 插件：**你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天**。消息默认全群可见；任何成员都可以用 `@名字` 把话交给别人，`@你的角色名` 表示交还控制。
 
 按《多角色互聊插件-计划书-1.0》实现，覆盖 M0 + M1，并在 v1.1 加入智能路由：
@@ -88,7 +90,9 @@ node --test --test-name-pattern=randomized test/stability.test.js
 plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupchat
 ```
 
-安装后刷新 Web 页面；左侧栏出现「群聊」。
+安装或升级后刷新 Web 页面；左侧栏出现「群聊」。数据保存在
+`$DSH_HOME/plugin-data/multi-role-groupchat/`，重新安装插件不会删除群聊数据。
+当前通过本地 bundle 安装，未发布到 npm。
 
 ## 新建页与管理页的字段对应
 

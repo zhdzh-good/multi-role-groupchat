@@ -25,7 +25,7 @@
 | P0-2 | 真实模型回归集：按计划书 §13 的 20 条固定样例，记录通过率、token、缓存读/写 | 结果写入 `docs/qa/real-model-v0.1.md`，无崩溃/预算异常 | M |
 | P0-3 | 缓存与成本实测：计划书 §5 三场景各 20 次，记录中位数与 P95 | 报告给出命中率与单次输入 token；决定是否调 `maxHistory` | M |
 | P0-4 | 数据迁移测试：v1 fixture、未来 v2 拒绝/迁移路径、`.bak` 策略 | 测试覆盖；错误信息可操作 | S |
-| P0-5 | 发布流程：版本号、`v1.1.0` tag、release notes；明确 npm 还是 GitHub-only | 从 tag 在干净 profile 安装成功 | S |
+| P0-5 | 发布流程：版本号、`v1.1.0` tag、release notes；明确 npm、GitHub-only 或 dsh-market | 从 tag 在干净 profile 安装成功 | S |
 | P0-6 | UI 烟测清单：建群、@、接话、钉住、重写、导出、停止、刷新、设置页 | `docs/qa/ui-smoke.md`；可选 Playwright | S–M |
 
 ## P1 · 体验与成本（v0.2）
