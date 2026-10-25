@@ -142,6 +142,7 @@ window.__ModuleLoader__.load({
 .mgc-card{border:.5px solid var(--dsw-alias-border-l1);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--dsw-alias-bg-layer-1)}
 .mgc-cardHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .mgc-cardTitle{margin:0;font-size:13px;font-weight:600;line-height:20px}
+.mgc-formSection{margin:18px 0 10px;padding-top:12px;border-top:.5px solid var(--dsw-alias-border-l1)}
 .mgc-formActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px}
 .mgc-formStatus{margin-right:auto;font-size:11px;line-height:18px;color:var(--dsw-alias-label-secondary)}
 .mgc-onboarding{box-sizing:border-box;width:100%;height:100%;overflow:auto;padding:clamp(28px,7vh,72px) clamp(20px,4vw,40px) 56px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
@@ -225,6 +226,7 @@ window.__ModuleLoader__.load({
       'create.cancel': '取消',
       'create.back': '返回群聊',
       'create.hint': '创建后可在「管理」里补全扩展设定、模型覆盖与预算。',
+      'create.fieldsHint': '这里只填基础档案；头像、成员关系、扩展设定和模型覆盖可在创建后的「管理」里补充。',
       'header.members': '成员 {n}',
       'header.tokens': '{n} tokens',
       'header.pinned': '{n} 钉住',
@@ -273,6 +275,7 @@ window.__ModuleLoader__.load({
       'common.cancel': '取消',
       'common.delete': '移除',
       'common.none': '（无）',
+      'common.optional': '可选扩展',
       'common.add': '添加',
       'group.name': '群名',
       'group.brief': '群简介',
@@ -307,6 +310,7 @@ window.__ModuleLoader__.load({
       'group.deleting': '删除中…',
       'owner.title': '我的角色',
       'owner.optional': '可选；创建后也能在「管理 → 我的角色」修改',
+      'owner.optionalHint': '头像和与成员的关系是可选项；名字、一句话和设定会原样进入新建时的角色档案。',
       'owner.hint': '成员每轮都会看到这份档案；角色名也用于 @。',
       'owner.name': '角色名',
       'owner.namePlaceholder': '例如：阿明',
@@ -320,6 +324,7 @@ window.__ModuleLoader__.load({
       'owner.settingHint': '建议 ≤ 4000 字；保存时不会静默截断。',
       'owner.overLimit': '超出建议长度 {n} 字：仍会保存，但会挤占上下文。',
       'owner.save': '保存角色档案',
+      'members.optionalHint': '头像、关系、扩展设定与模型覆盖是可选项，不影响新建时的基础档案。',
       'members.title': '成员',
       'members.add': '新增成员',
       'members.editing': '编辑 {name}',
@@ -399,6 +404,7 @@ window.__ModuleLoader__.load({
       'create.cancel': 'Cancel',
       'create.back': 'Back to chat',
       'create.hint': 'Extended settings, model overrides, and budgets are available under Manage.',
+      'create.fieldsHint': 'This form covers the basic profile only. Avatars, relationships, extended settings, and model overrides are available under Manage after creation.',
       'header.members': '{n} members',
       'header.tokens': '{n} tokens',
       'header.pinned': '{n} pinned',
@@ -447,6 +453,7 @@ window.__ModuleLoader__.load({
       'common.cancel': 'Cancel',
       'common.delete': 'Remove',
       'common.none': '(none)',
+      'common.optional': 'Optional extras',
       'common.add': 'Add',
       'group.name': 'Group name',
       'group.brief': 'Brief',
@@ -481,6 +488,7 @@ window.__ModuleLoader__.load({
       'group.deleting': 'Deleting…',
       'owner.title': 'My character',
       'owner.optional': 'Optional; editable later under Manage → My character',
+      'owner.optionalHint': 'Avatar and relationships are optional; the name, one-liner, and setting are exactly the character profile entered at creation.',
       'owner.hint': 'Members see this profile every turn; the character name is also used for @.',
       'owner.name': 'Character name',
       'owner.namePlaceholder': 'e.g. Ming',
@@ -494,6 +502,7 @@ window.__ModuleLoader__.load({
       'owner.settingHint': '4,000 characters or fewer recommended; saving never truncates silently.',
       'owner.overLimit': '{n} characters over the recommendation: saving still works, but context shrinks.',
       'owner.save': 'Save character profile',
+      'members.optionalHint': 'Avatar, relationships, extended settings, and model overrides are optional; they do not change the basic profile entered at creation.',
       'members.title': 'Members',
       'members.add': 'Add member',
       'members.editing': 'Editing {name}',
@@ -2437,13 +2446,6 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         null,
-        h(AvatarField, {
-          t,
-          avatar,
-          name: name || '?',
-          color: avatarColor(members, member?.id),
-          onChange: setAvatar,
-        }),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2470,6 +2472,38 @@ window.__ModuleLoader__.load({
             placeholder: t('create.memberOneLinerPlaceholder'),
           }),
         ),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: 'mgc-member-core' }, t('members.core')),
+          h('textarea', {
+            id: 'mgc-member-core',
+            className: 'mgc-textarea2 mgc-textareaCore',
+            value: core,
+            onChange: (event) => setCore(event.target.value),
+            placeholder: t('create.memberCorePlaceholder'),
+          }),
+          h(
+            'div',
+            { className: coreLength > 4000 ? 'mgc-warnText' : 'mgc-hint' },
+            coreLength > 4000
+              ? t('members.overLimit', { n: coreLength - 4000 })
+              : t('members.coreCount', { n: coreLength }),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'mgc-formSection' },
+          h('div', { className: 'mgc-label' }, t('common.optional')),
+          h('div', { className: 'mgc-hint' }, t('members.optionalHint')),
+        ),
+        h(AvatarField, {
+          t,
+          avatar,
+          name: name || '?',
+          color: avatarColor(members, member?.id),
+          onChange: setAvatar,
+        }),
         others.length > 0
           ? h(
               'div',
@@ -2491,25 +2525,6 @@ window.__ModuleLoader__.load({
               ),
             )
           : null,
-        h(
-          'div',
-          { className: 'mgc-field' },
-          h('label', { className: 'mgc-label', htmlFor: 'mgc-member-core' }, t('members.core')),
-          h('textarea', {
-            id: 'mgc-member-core',
-            className: 'mgc-textarea2 mgc-textareaCore',
-            value: core,
-            onChange: (event) => setCore(event.target.value),
-            placeholder: t('create.memberCorePlaceholder'),
-          }),
-          h(
-            'div',
-            { className: coreLength > 4000 ? 'mgc-warnText' : 'mgc-hint' },
-            coreLength > 4000
-              ? t('members.overLimit', { n: coreLength - 4000 })
-              : t('members.coreCount', { n: coreLength }),
-          ),
-        ),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2614,13 +2629,6 @@ window.__ModuleLoader__.load({
         'div',
         null,
         h('p', { className: 'mgc-hint', style: { margin: '0 0 14px' } }, t('owner.hint')),
-        h(AvatarField, {
-          t,
-          avatar,
-          name: name || '用户',
-          owner: true,
-          onChange: setAvatar,
-        }),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2648,6 +2656,38 @@ window.__ModuleLoader__.load({
             placeholder: t('owner.oneLinerPlaceholder'),
           }),
         ),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: `${uid.current}-setting` }, t('owner.setting')),
+          h('textarea', {
+            id: `${uid.current}-setting`,
+            className: 'mgc-textarea2 mgc-textareaCore',
+            value: setting,
+            onChange: (event) => setSetting(event.target.value),
+            placeholder: t('owner.settingPlaceholder'),
+          }),
+          h(
+            'div',
+            { className: settingLength > 4000 ? 'mgc-warnText' : 'mgc-hint' },
+            settingLength > 4000
+              ? t('owner.overLimit', { n: settingLength - 4000 })
+              : `${t('owner.settingHint')} · ${settingLength} / 4000`,
+          ),
+        ),
+        h(
+          'div',
+          { className: 'mgc-formSection' },
+          h('div', { className: 'mgc-label' }, t('common.optional')),
+          h('div', { className: 'mgc-hint' }, t('owner.optionalHint')),
+        ),
+        h(AvatarField, {
+          t,
+          avatar,
+          name: name || '用户',
+          owner: true,
+          onChange: setAvatar,
+        }),
         members.length > 0
           ? h(
               'div',
@@ -2669,25 +2709,6 @@ window.__ModuleLoader__.load({
               ),
             )
           : null,
-        h(
-          'div',
-          { className: 'mgc-field' },
-          h('label', { className: 'mgc-label', htmlFor: `${uid.current}-setting` }, t('owner.setting')),
-          h('textarea', {
-            id: `${uid.current}-setting`,
-            className: 'mgc-textarea2 mgc-textareaCore',
-            value: setting,
-            onChange: (event) => setSetting(event.target.value),
-            placeholder: t('owner.settingPlaceholder'),
-          }),
-          h(
-            'div',
-            { className: settingLength > 4000 ? 'mgc-warnText' : 'mgc-hint' },
-            settingLength > 4000
-              ? t('owner.overLimit', { n: settingLength - 4000 })
-              : `${t('owner.settingHint')} · ${settingLength} / 4000`,
-          ),
-        ),
         error !== null ? h('p', { className: 'mgc-error' }, error) : null,
         saved ? h('p', { className: 'mgc-success' }, t('common.saved')) : null,
         h(
@@ -2992,6 +3013,7 @@ window.__ModuleLoader__.load({
         { className: embedded ? 'mgc-createEmbed' : 'mgc-onboardingInner' },
         h('h1', { className: 'mgc-h1' }, t('create.title')),
         h('p', { className: 'mgc-p' }, t('create.desc')),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '16px' } }, t('create.fieldsHint')),
         h(
           'div',
           { className: 'mgc-field' },

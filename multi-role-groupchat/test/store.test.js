@@ -193,6 +193,31 @@ test('unknown group and invalid ids are rejected', async (t) => {
 });
 
 
+test('creation carries owner and member profile fields into management', async (t) => {
+  const { store, root } = await fixture(t);
+  const live = await store.createGroup({
+    name: '创建字段测试',
+    owner: {
+      name: '管理员',
+      oneLiner: '刚醒来的管理员',
+      setting: '你在缘缘庄休养。',
+    },
+    members: [
+      { name: '祀', oneLiner: '画境客栈主人', core: '档案定位：画师。' },
+      { name: '佩丽卡', oneLiner: '监督', core: '档案定位：监督。' },
+    ],
+  });
+  assert.equal(live.group.owner.name, '管理员');
+  assert.equal(live.group.owner.oneLiner, '刚醒来的管理员');
+  assert.equal(live.group.owner.setting, '你在缘缘庄休养。');
+  const view = await new GroupStore(root).stateView(live.gid);
+  assert.equal(view.owner.name, '管理员');
+  assert.equal(view.owner.oneLiner, '刚醒来的管理员');
+  assert.equal(view.owner.setting, '你在缘缘庄休养。');
+  assert.equal(view.members[0].public.oneLiner, '画境客栈主人');
+  assert.equal(view.members[0].core, '档案定位：画师。');
+});
+
 test('owner profile persists, validates, and labels owner messages', async (t) => {
   const { store, root } = await fixture(t);
   const live = await store.createGroup({
