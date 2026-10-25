@@ -75,7 +75,7 @@ node --test --test-name-pattern=randomized test/stability.test.js
 安装（在 Harness 里）：
 
 ```text
-plugin_manager action=install_bundle target=/home/zqy/桌面/plugin/multi-role-groupchat
+plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupchat
 ```
 
 安装后刷新 Web 页面；左侧栏出现「群聊」。

@@ -1,0 +1,19 @@
+# Dependencies and packaging output
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# Plugin-owned runtime data (the default lives under $DSH_HOME, but keep local copies out)
+data/
+
+# Local state, logs, environment
+*.log
+.env
+.env.*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
