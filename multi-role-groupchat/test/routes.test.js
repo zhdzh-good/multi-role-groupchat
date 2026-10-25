@@ -9,12 +9,13 @@ import { GroupStore } from '../lib/store.js';
 
 /**
  * Fake Host context exposing Connection routes, llm streaming, and the default model.
- * @param {{texts?: string[]}} [options] - generated texts.
+ * @param {{texts?: string[], routeText?: string}} [options] - generated texts and classifier output.
  * @returns {{ctx: object, routes: Map<string, object>}} fixture.
  */
 function fakeContext(options = {}) {
   const routes = new Map();
   const texts = [...(options.texts ?? ['你好。'])];
+  const routeText = options.routeText ?? '{"targets":[],"reason":"","confidence":0}';
   const ctx = {
     effect: (callback) => callback(),
     get: (key) => (key === 'agentDefaultModel'
@@ -32,10 +33,16 @@ function fakeContext(options = {}) {
     llm: {
       listProviders: () => [{ id: 'fake', name: 'Fake' }],
       listModels: async () => [{ id: 'fake-1', name: 'Fake One' }],
-      async *stream() {
-        const text = texts.length > 0 ? texts.shift() : '……';
+      async *stream(request) {
+        const isRouter = request.system?.includes('群聊路由器') === true;
+        const text = isRouter ? routeText : (texts.length > 0 ? texts.shift() : '……');
         yield { type: 'text-delta', text };
-        yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 4, cacheReadTokens: 2, cacheWriteTokens: 0 } };
+        yield {
+          type: 'usage',
+          usage: isRouter
+            ? { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 }
+            : { inputTokens: 10, outputTokens: 4, cacheReadTokens: 2, cacheWriteTokens: 0 },
+        };
         yield { type: 'finish', reason: { kind: 'stop' } };
       },
     },
@@ -120,6 +127,11 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   assert.equal(created.json.state.members.length, 2);
   const groupId = created.json.groupId;
 
+  const configured = await call(routes, '/api/groupchat.group-update', {
+    body: { groupId, policy: { bystanderChance: 0 } },
+  });
+  assert.equal(configured.status, 200);
+
   const state = await call(routes, '/api/groupchat.state', { method: 'GET', query: `?groupId=${groupId}` });
   assert.equal(state.status, 200);
   assert.equal(state.json.selectedId, groupId);
@@ -137,17 +149,16 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   assert.equal(events[0].message.role, 'user');
   assert.deepEqual(events[0].message.mentions, [created.json.state.members[0].id]);
   const messages = events.filter((event) => event.type === 'message').map((event) => event.message);
-  assert.equal(messages.length, 4, 'user message plus three generations');
+  assert.equal(messages.length, 2, 'user message plus the guaranteed addressee');
   assert.deepEqual(messages.slice(1).map((message) => message.memberId), [
-    created.json.state.members[0].id,
-    created.json.state.members[1].id,
     created.json.state.members[0].id,
   ]);
   assert.equal(messages[1].usage.inputTokens, 10);
   const finalState = events.find((event) => event.type === 'state');
   assert.ok(finalState, 'final state event');
-  assert.equal(finalState.state.messages.length, 4);
-  assert.equal(finalState.state.totals.outputTokens, 12);
+  assert.equal(finalState.state.messages.length, 2);
+  assert.equal(finalState.state.totals.outputTokens, 4);
+  assert.equal(finalState.state.lastRoute.method, 'explicit');
   assert.equal(events.at(-1).type, 'done');
 
   const latest = finalState.state.latestMemberMessageId;
@@ -163,7 +174,7 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   const replacement = rewriteEvents.find((event) => event.type === 'message' && event.message.supersedes === latest);
   assert.ok(replacement);
   const afterRewrite = rewriteEvents.find((event) => event.type === 'state');
-  assert.equal(afterRewrite.state.messages.length, 4);
+  assert.equal(afterRewrite.state.messages.length, 2);
   assert.equal(afterRewrite.state.supersededCount, 1);
   assert.equal(afterRewrite.state.pinnedCount, 1, 'a pinned reply stays pinned through rewrite');
   assert.equal(afterRewrite.state.messages.at(-1).pinned, true);
@@ -178,6 +189,44 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   const stopped = await call(routes, '/api/groupchat.stop', { body: { groupId } });
   assert.equal(stopped.status, 200);
   assert.equal(stopped.json.stopped, false);
+});
+
+test('smart routing selects a model-chosen target and records route usage', async (t) => {
+  const { routes } = await fixture(t, {
+    routeText: '{"targets":["林晚"],"reason":"她有钥匙","confidence":0.9}',
+    texts: ['我去开门。'],
+  });
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: {
+      name: '智能路由测试',
+      members: [
+        { name: '林晚', oneLiner: '店主', core: '说话短。' },
+        { name: '周野', oneLiner: '电工', core: '嘴硬。' },
+      ],
+    },
+  });
+  const groupId = created.json.groupId;
+  await call(routes, '/api/groupchat.group-update', {
+    body: { groupId, policy: { bystanderChance: 0 } },
+  });
+
+  const sent = await call(routes, '/api/groupchat.send', { body: { groupId, text: '今天谁去开门？' } });
+  assert.equal(sent.status, 200);
+  const events = ndjson(sent.text);
+  const route = events.find((event) => event.type === 'route');
+  assert.ok(route);
+  assert.equal(route.route.method, 'model');
+  assert.deepEqual(route.route.targets, [created.json.state.members[0].id]);
+  assert.equal(route.route.reason, '她有钥匙');
+  assert.equal(route.route.usage.inputTokens, 3);
+
+  const messages = events.filter((event) => event.type === 'message').map((event) => event.message);
+  assert.equal(messages.length, 2);
+  assert.equal(messages[1].memberId, created.json.state.members[0].id);
+  const finalState = events.find((event) => event.type === 'state');
+  assert.equal(finalState.state.totals.inputTokens, 13);
+  assert.equal(finalState.state.totals.outputTokens, 5);
+  assert.deepEqual(finalState.state.lastRoute.targets, [created.json.state.members[0].id]);
 });
 
 test('routes reject invalid input without leaking internals', async (t) => {

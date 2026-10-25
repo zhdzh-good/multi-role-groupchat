@@ -7,7 +7,7 @@
  */
 
 import { budgetStop, formatTranscript, normalizeReply, ownerDisplayName, parseMentions, speakerName } from './protocol.js';
-import { createGenerator } from './generate.js';
+import { createGenerator, createRouteClassifier } from './generate.js';
 import { GroupChatError, makeId } from './store.js';
 import { runTurn } from './turn.js';
 
@@ -280,6 +280,7 @@ async function handleSend(ctx, store, request) {
   const turnId = makeId('m');
   return streamResponse(store, turn, request.signal, async ({ send, signal }) => {
     const generate = createGenerator(ctx, live, defaultModel);
+    const classify = createRouteClassifier(ctx, live, defaultModel);
     const emit = (event) => {
       if (event.type === 'generating') {
         turn.phase = 'replying';
@@ -293,9 +294,11 @@ async function handleSend(ctx, store, request) {
       members: live.members,
       getActive: () => live.state.active,
       appendMessage: (message) => store.appendMessage(body.groupId, message),
+      appendRoute: (route) => store.appendRoute(body.groupId, route),
       appendNotice: (noticeText, level) => store.appendNotice(body.groupId, noticeText, level),
       getTotals: () => live.state.totals,
       generate,
+      route: classify,
       emit,
       signal,
       userText: text,

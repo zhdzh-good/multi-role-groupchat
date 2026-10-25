@@ -23,8 +23,10 @@ export const DEFAULT_OWNER = Object.freeze({
 
 /** Default group policy from the implementation plan. */
 export const DEFAULT_POLICY = Object.freeze({
-  replyMode: 'mention-or-rotate',
+  replyMode: 'smart-router',
+  smartRouting: true,
   maxMentionReplies: 2,
+  bystanderChance: 30,
   maxHandoffDepth: 2,
   maxHistory: 24,
   maxPinned: 10,
@@ -112,21 +114,20 @@ export function mentionTarget(parsed) {
 }
 
 /**
- * Generation cap for one user message, from the plan §3.2 table.
+ * Generation cap for one user message under the router protocol.
  *
- * With mentions: `min(mentions, maxMentionReplies) + maxHandoffDepth`.
- * Without mentions the first rotation takes the first handoff slot, so the
- * plan's table caps the turn at `maxHandoffDepth + 1` (and never above 3).
+ * The initial routed set (addressees plus sampled bystanders) always gets to
+ * answer, then each explicit member-to-member handoff consumes one depth slot.
+ * The routed set itself is capped by the number of members and
+ * `maxMentionReplies`.
  *
- * @param {number} mentionCount - parsed member mentions on the user message.
+ * @param {number} initialCount - planned addressees plus bystanders.
  * @param {typeof DEFAULT_POLICY} policy - group policy.
  * @returns {number} maximum member generations for the turn.
  */
-export function generationCap(mentionCount, policy) {
+export function generationCap(initialCount, policy) {
   const depth = clampInt(policy?.maxHandoffDepth, 0, 3, DEFAULT_POLICY.maxHandoffDepth);
-  if (mentionCount === 0) return Math.min(3, depth + 1);
-  const replies = clampInt(policy?.maxMentionReplies, 0, 3, DEFAULT_POLICY.maxMentionReplies);
-  return Math.min(mentionCount, replies) + depth;
+  return Math.max(1, clampInt(initialCount, 0, 10, 1)) + depth;
 }
 
 /**
@@ -265,11 +266,12 @@ export function buildSystemPrefix(group, members) {
  * @param {string} input.sourceUserText - the user message that triggered this turn.
  * @param {number} input.replyIndex - 1-based reply index within the turn.
  * @param {string} input.previousName - display name of the previous message's speaker.
+ * @param {'addressed'|'bystander'|'handoff'|null} [input.routeRole] - why this member replies.
  * @param {string|null} [input.excludeId] - rewrite target to omit from history.
  * @returns {{system: string, messages: Array<object>, folded: object[]}} request pieces.
  */
 export function buildPrompt(input) {
-  const { group, members, member, sourceUserText, replyIndex, previousName, excludeId = null } = input;
+  const { group, members, member, sourceUserText, replyIndex, previousName, routeRole = null, excludeId = null } = input;
   const selection = selectHistory(input.activeMessages, group.policy, excludeId);
   const owner = ownerProfile(group);
   const messages = selection.inPrompt.map((message) => ({
@@ -287,8 +289,15 @@ export function buildPrompt(input) {
     '=== 本次回应 ===',
     `${owner.name}刚说：${sourceUserText}`,
     `这是本次发言的第 ${replyIndex} 条回应；上一条来自 ${previousName}。`,
-    `直接回应，或用 @名字 把话交给别人；@${owner.name} 表示等对方回答。`,
   );
+  if (routeRole === 'addressed') {
+    tail.push('这句话主要是对你说的；先直接回应，不要替别人回答。');
+  } else if (routeRole === 'bystander') {
+    tail.push('这句话不是直接对你说的；你可以自然补一句，也可以只回应你在意的部分，不要抢话。');
+  } else if (routeRole === 'handoff') {
+    tail.push('上一条把话交给了你；顺着接下去。');
+  }
+  tail.push(`直接回应，或用 @名字 把话交给别人；@${owner.name} 表示等对方回答。`);
   messages.push({ role: 'user', content: [{ type: 'text', text: tail.join('\n\n') }] });
   return { system: buildSystemPrefix(group, members), messages, folded: selection.folded };
 }
@@ -303,6 +312,7 @@ export function createState() {
     byId: new Map(),
     active: [],
     notices: [],
+    routes: [],
     totals: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
   };
 }
@@ -359,6 +369,22 @@ export function applyEvent(state, event) {
       text: typeof event.text === 'string' ? event.text : '',
       level: event.level === 'warn' ? 'warn' : 'info',
     });
+    return state;
+  }
+  if (event.type === 'route') {
+    const route = {
+      id: typeof event.id === 'string' ? event.id : `r_${state.routes.length}`,
+      turnId: typeof event.turnId === 'string' ? event.turnId : null,
+      ts: Number.isFinite(event.ts) ? event.ts : 0,
+      targets: Array.isArray(event.targets) ? event.targets.filter((id) => typeof id === 'string') : [],
+      bystanders: Array.isArray(event.bystanders) ? event.bystanders.filter((id) => typeof id === 'string') : [],
+      method: typeof event.method === 'string' ? event.method : 'unknown',
+      reason: typeof event.reason === 'string' ? event.reason : '',
+      confidence: Number.isFinite(event.confidence) ? event.confidence : null,
+      usage: normalizeUsage(event.usage),
+    };
+    state.routes.push(route);
+    addUsage(state.totals, route.usage);
     return state;
   }
   return state;
@@ -531,11 +557,17 @@ export function formatTranscript({ group, members, state, includeHistory = false
   const owner = ownerProfile(group);
   const lines = [`# ${group.name}`, ''];
   if (typeof group.brief === 'string' && group.brief.trim().length > 0) lines.push(`> ${group.brief.trim()}`, '');
+  const routes = Array.isArray(state.routes) ? state.routes : [];
+  const routeInput = routes.reduce((sum, route) => sum + (route.usage?.inputTokens ?? 0), 0);
+  const routeOutput = routes.reduce((sum, route) => sum + (route.usage?.outputTokens ?? 0), 0);
   lines.push(
     `- 角色：${owner.name}`,
     `- 成员：${members.map((member) => member.name).join('、') || '（无）'}`,
     `- 导出时间：${new Date(exportedAt * 1000).toISOString()}`,
     `- Token 累计：输入 ${state.totals.inputTokens.toLocaleString('en-US')} · 输出 ${state.totals.outputTokens.toLocaleString('en-US')} · 缓存读 ${state.totals.cacheReadTokens.toLocaleString('en-US')} · 缓存写 ${state.totals.cacheWriteTokens.toLocaleString('en-US')}`,
+    ...(routes.length === 0
+      ? []
+      : [`- 路由调用：${routes.length} 次 · 输入 ${routeInput.toLocaleString('en-US')} · 输出 ${routeOutput.toLocaleString('en-US')}`]),
     '',
     '## 群聊记录',
     '',
@@ -593,8 +625,10 @@ export function clampInt(value, min, max, fallback) {
  */
 export function normalizePolicy(policy) {
   return {
-    replyMode: 'mention-or-rotate',
-    maxMentionReplies: clampInt(policy?.maxMentionReplies, 0, 3, DEFAULT_POLICY.maxMentionReplies),
+    replyMode: 'smart-router',
+    smartRouting: policy?.smartRouting !== false,
+    maxMentionReplies: clampInt(policy?.maxMentionReplies, 1, 3, DEFAULT_POLICY.maxMentionReplies),
+    bystanderChance: clampInt(policy?.bystanderChance, 0, 100, DEFAULT_POLICY.bystanderChance),
     maxHandoffDepth: clampInt(policy?.maxHandoffDepth, 0, 3, DEFAULT_POLICY.maxHandoffDepth),
     maxHistory: clampInt(policy?.maxHistory, 1, 200, DEFAULT_POLICY.maxHistory),
     maxPinned: clampInt(policy?.maxPinned, 0, 30, DEFAULT_POLICY.maxPinned),

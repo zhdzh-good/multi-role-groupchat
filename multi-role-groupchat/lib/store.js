@@ -439,6 +439,31 @@ export class GroupStore {
   }
 
   /**
+   * Append one routing decision. Route usage is counted in group totals even
+   * though it is not a visible chat message.
+   * @param {string} gid - group id.
+   * @param {object} route - targets, bystanders, method, reason, confidence, usage.
+   * @returns {Promise<object>} stored event.
+   */
+  async appendRoute(gid, route) {
+    const live = await this.load(gid);
+    const event = {
+      type: 'route',
+      id: makeId('r'),
+      ts: Number.isFinite(route?.ts) ? route.ts : Math.floor(Date.now() / 1000),
+      turnId: typeof route?.turnId === 'string' ? route.turnId : null,
+      targets: Array.isArray(route?.targets) ? route.targets.filter((id) => typeof id === 'string') : [],
+      bystanders: Array.isArray(route?.bystanders) ? route.bystanders.filter((id) => typeof id === 'string') : [],
+      method: typeof route?.method === 'string' ? route.method : 'unknown',
+      reason: typeof route?.reason === 'string' ? route.reason : '',
+      confidence: Number.isFinite(route?.confidence) ? route.confidence : null,
+      usage: normalizeUsage(route?.usage),
+    };
+    await this.#append(live, event);
+    return event;
+  }
+
+  /**
    * Toggle one message's pin, enforcing the pinned ceiling.
    * @param {string} gid - group id.
    * @param {string} target - message id.
@@ -623,6 +648,7 @@ export function buildStateView(live, turn) {
     },
     policy: live.group.policy,
     budget: live.group.budget,
+    lastRoute: live.state.routes[live.state.routes.length - 1] ?? null,
     warnings: live.warnings,
   };
 }

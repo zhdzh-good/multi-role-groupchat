@@ -1,20 +1,24 @@
 /**
- * One user turn: append the owner message, generate the mentioned replies, then
- * run the handoff loop exactly as the plan's §3.1 flow describes.
+ * One owner turn under the smart-router protocol.
  *
- * All persistence is injected so this module stays pure enough to test with a
- * fake generator and in-memory message list.
+ * 1. Append the owner message.
+ * 2. Route it to a guaranteed addressee set (explicit @/name, pronoun, or a
+ *    small model classifier; local rotation if all else fails).
+ * 3. Let each remaining member reply with a configurable probability.
+ * 4. Follow only explicit member-to-member handoffs, up to the depth limit.
+ *
+ * All persistence is injected so this module stays testable with a fake
+ * generator and an in-memory message list.
  */
 
 import {
-  OWNER_NAME,
   generationCap,
   normalizeReply,
   ownerDisplayName,
   parseMentions,
-  pickRotation,
   speakerName,
 } from './protocol.js';
+import { resolveRoute } from './router.js';
 
 /**
  * Run one turn.
@@ -26,9 +30,12 @@ import {
  *   everything appended by this turn.
  * @param {(message: object) => void} input.appendMessage - persist a message and
  *   make it effective.
+ * @param {(route: object) => void} [input.appendRoute] - persist the route event.
  * @param {(text: string, level?: 'info'|'warn') => object} input.appendNotice - persist a notice.
  * @param {() => object} input.getTotals - accumulated token usage.
  * @param {(request: object) => Promise<{text: string, usage: object|null}>} input.generate - model call.
+ * @param {(request: object) => Promise<object|null>} [input.route] - model classifier.
+ * @param {() => number} [input.random] - random source for bystander sampling.
  * @param {(event: object) => void} input.emit - stream one NDJSON event.
  * @param {AbortSignal} input.signal - cancellation for user stop and disconnect.
  * @param {string} input.userText - owner message body.
@@ -43,6 +50,7 @@ export async function runTurn(input) {
     members,
     getActive,
     appendMessage,
+    appendRoute,
     appendNotice,
     getTotals,
     generate,
@@ -53,6 +61,7 @@ export async function runTurn(input) {
   } = input;
   const now = input.now ?? (() => Math.floor(Date.now() / 1000));
   const makeId = input.makeId ?? makeMessageId;
+  const random = input.random ?? Math.random;
   const memberMap = new Map(members.map((member) => [member.id, member]));
   const policy = group.policy;
   const budget = group.budget ?? {};
@@ -80,11 +89,46 @@ export async function runTurn(input) {
   await appendMessage(userMessage);
   emit({ type: 'message', message: userMessage });
 
-  const cap = generationCap(parsedUser.memberIds.length, policy);
-  const initialTargets = parsedUser.memberIds
+  const decision = await resolveRoute({
+    group,
+    members,
+    activeMessages: getActive(),
+    userText,
+    classifier: input.route,
+    signal,
+  });
+  if (signal.aborted) {
+    emit({ type: 'stopped', reason: 'user' });
+    return { generated: 0, reason: 'stopped' };
+  }
+
+  const maxTargets = Math.max(1, Math.min(3, Number(policy.maxMentionReplies) || 1));
+  const targets = decision.targets
     .filter((id) => memberMap.has(id))
-    .slice(0, policy.maxMentionReplies);
-  const rotating = initialTargets.length === 0;
+    .slice(0, maxTargets);
+  const targetSet = new Set(targets);
+  const chance = Math.min(100, Math.max(0, Number(policy.bystanderChance) || 0));
+  const bystanders = [];
+  if (decision.method !== 'owner') {
+    for (const member of members) {
+      if (targetSet.has(member.id)) continue;
+      if (random() * 100 < chance) bystanders.push(member.id);
+    }
+  }
+
+  const routeRecord = {
+    turnId,
+    ts: now(),
+    targets,
+    bystanders,
+    method: decision.method,
+    reason: decision.reason,
+    confidence: decision.confidence,
+    usage: decision.usage,
+  };
+  if (typeof appendRoute === 'function') await appendRoute(routeRecord);
+  emit({ type: 'route', route: routeRecord });
+
   let last = userMessage;
   let generated = 0;
   let handoff = 0;
@@ -122,15 +166,17 @@ export async function runTurn(input) {
    * Generate one member reply and append it when the model produced text.
    * @param {object} member - speaking member.
    * @param {object|null} replyTo - message answered by this reply.
+   * @param {'addressed'|'bystander'|'handoff'} routeRole - why this member is speaking.
    * @returns {Promise<object|null>} appended message, or null when the turn ended.
    */
-  const reply = async (member, replyTo) => {
+  const reply = async (member, replyTo, routeRole) => {
     const replyIndex = generated + 1;
     emit({
       type: 'generating',
       memberId: member.id,
       memberName: member.name,
       replyIndex,
+      routeRole,
       turnId,
     });
     let result;
@@ -141,6 +187,7 @@ export async function runTurn(input) {
         sourceUserText: userText,
         replyIndex,
         previousName: speakerName(last, members, ownerName),
+        routeRole,
         signal,
       });
     } catch (error) {
@@ -192,39 +239,41 @@ export async function runTurn(input) {
     return message;
   };
 
-  for (const targetId of initialTargets) {
+  if (decision.method === 'owner' || (targets.length === 0 && bystanders.length === 0)) {
+    return finish(decision.method === 'owner' ? 'owner' : 'no-speaker');
+  }
+
+  const initial = [
+    ...targets.map((id) => ({ id, role: 'addressed' })),
+    ...bystanders.map((id) => ({ id, role: 'bystander' })),
+  ];
+  const cap = generationCap(initial.length, policy);
+
+  for (const entry of initial) {
     if (signal.aborted) return stopped();
     if (generated >= cap) return finish('cap');
     if (budgetReason() !== null) return pauseForBudget();
-    const member = memberMap.get(targetId);
+    const member = memberMap.get(entry.id);
     if (member === undefined) continue;
-    const message = await reply(member, last);
+    const message = await reply(member, last, entry.role);
     if (message === null) return finish('interrupted');
     if (message.mentionsOwner) return finish('owner');
   }
 
+  // Only explicit handoffs continue the turn. The old rotation loop would
+  // quietly force every member to answer even when the router chose one
+  // addressee, which defeats the probability gate above.
   while (!signal.aborted) {
     if (last.mentionsOwner) return finish('owner');
     if (generated >= cap) return finish('cap');
     if (budgetReason() !== null) return pauseForBudget();
     const mentioned = last.mentions.find((id) => id !== last.memberId && memberMap.has(id));
-    let targetId;
-    if (rotating) {
-      targetId = pickRotation(members, getActive(), last.memberId);
-      if (targetId === undefined) return finish('no-speaker');
-    } else if (mentioned !== undefined) {
-      if (handoff >= depth) return finish('cap');
-      handoff += 1;
-      targetId = mentioned;
-    } else {
-      if (handoff >= depth) return finish('cap');
-      targetId = pickRotation(members, getActive(), last.memberId);
-      if (targetId === undefined) return finish('no-speaker');
-      handoff += 1;
-    }
-    const member = memberMap.get(targetId);
+    if (mentioned === undefined) return finish('settled');
+    if (handoff >= depth) return finish('cap');
+    handoff += 1;
+    const member = memberMap.get(mentioned);
     if (member === undefined) return finish('no-speaker');
-    const message = await reply(member, last);
+    const message = await reply(member, last, 'handoff');
     if (message === null) return finish('interrupted');
   }
   return stopped();

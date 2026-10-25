@@ -10,7 +10,6 @@ import {
   buildPrompt,
   formatTranscript,
   generationCap,
-  parseMentions,
   selectHistory,
 } from '../lib/protocol.js';
 import { registerRoutes } from '../lib/routes.js';
@@ -244,6 +243,7 @@ test(`randomized ${STRESS_TURNS}-turn conversation keeps log, view, pins, and to
       appendNotice: (text, level) => store.appendNotice(live.gid, text, level),
       getTotals: () => live.state.totals,
       generate,
+      random,
       emit: (event) => events.push(event),
       signal: new AbortController().signal,
       userText,
@@ -255,7 +255,7 @@ test(`randomized ${STRESS_TURNS}-turn conversation keeps log, view, pins, and to
       makeId: (prefix) => `${prefix}_stress_${++idCounter}`,
     });
     totalGenerated += outcome.generated;
-    const cap = generationCap(parseMentions(userText, live.members).memberIds.length, live.group.policy);
+    const cap = generationCap(live.members.length, live.group.policy);
     assertTurnInvariants(live, live.gid, cap, outcome.generated);
     assert.ok(live.state.active.length >= beforeActive + 1, 'the owner message is always appended');
     assert.equal(live.state.active.some((message) => message.id === turnId), true);
@@ -634,6 +634,12 @@ test('route-level concurrency: one active turn, concurrent pin, stop, and a clea
       listProviders: () => [{ id: 'fake', name: 'Fake' }],
       listModels: async () => [{ id: 'fake-1', name: 'Fake One' }],
       async *stream(options) {
+        if (options.system?.includes('群聊路由器')) {
+          yield { type: 'text-delta', text: '{"targets":[],"reason":"","confidence":0}' };
+          yield { type: 'usage', usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } };
+          yield { type: 'finish', reason: { kind: 'stop' } };
+          return;
+        }
         yield { type: 'text-delta', text: '部分' };
         if (config.slow) {
           await new Promise((resolve, reject) => {
@@ -779,6 +785,12 @@ test('two groups generate independently; stopping one does not abort the other',
       listProviders: () => [{ id: 'fake', name: 'Fake' }],
       listModels: async () => [{ id: 'fake-1', name: 'Fake One' }],
       async *stream(options) {
+        if (options.system?.includes('群聊路由器')) {
+          yield { type: 'text-delta', text: '{"targets":[],"reason":"","confidence":0}' };
+          yield { type: 'usage', usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } };
+          yield { type: 'finish', reason: { kind: 'stop' } };
+          return;
+        }
         yield { type: 'text-delta', text: '部分' };
         if (config.slow) {
           await new Promise((resolve, reject) => {

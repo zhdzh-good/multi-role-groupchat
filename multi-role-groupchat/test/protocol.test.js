@@ -10,6 +10,7 @@ import {
   createState,
   formatTranscript,
   generationCap,
+  normalizePolicy,
   normalizeReply,
   parseMentions,
   ownerDisplayName,
@@ -41,11 +42,11 @@ test('mentions match exact display names, ignore unknown and self', () => {
   assert.deepEqual(parseMentions('@林晚。', members), { memberIds: ['c_lin'], owner: false });
 });
 
-test('generation cap follows the plan table', () => {
+test('generation cap covers the routed set plus explicit handoffs', () => {
   assert.equal(generationCap(0, { ...DEFAULT_POLICY, maxHandoffDepth: 2 }), 3);
   assert.equal(generationCap(1, { ...DEFAULT_POLICY, maxHandoffDepth: 2 }), 3);
   assert.equal(generationCap(2, { ...DEFAULT_POLICY, maxHandoffDepth: 2 }), 4);
-  assert.equal(generationCap(3, { ...DEFAULT_POLICY, maxHandoffDepth: 2 }), 4);
+  assert.equal(generationCap(3, { ...DEFAULT_POLICY, maxHandoffDepth: 2 }), 5);
   assert.equal(generationCap(2, { ...DEFAULT_POLICY, maxHandoffDepth: 0 }), 2);
   assert.equal(generationCap(0, { ...DEFAULT_POLICY, maxHandoffDepth: 0 }), 1);
 });
@@ -109,6 +110,44 @@ test('replay applies messages, supersede, pin, notices, and cumulative usage', (
   assert.equal(state.totals.cacheReadTokens, 7);
 });
 
+test('route events are replayed and their usage joins group totals', () => {
+  const state = replayEvents([
+    { type: 'message', id: 'm_1', turnId: 'm_1', ts: 1, role: 'user', text: '谁去开门？' },
+    {
+      type: 'route',
+      id: 'r_1',
+      turnId: 'm_1',
+      ts: 2,
+      targets: ['c_lin'],
+      bystanders: ['c_zhou'],
+      method: 'model',
+      reason: '林晚有钥匙',
+      confidence: 0.8,
+      usage: { inputTokens: 30, outputTokens: 5, cacheReadTokens: 20, cacheWriteTokens: 0 },
+    },
+    {
+      type: 'message',
+      id: 'm_2',
+      turnId: 'm_1',
+      replyIndex: 1,
+      ts: 3,
+      role: 'member',
+      memberId: 'c_lin',
+      text: '我去。',
+      usage: { inputTokens: 10, outputTokens: 4 },
+    },
+  ]);
+  assert.equal(state.routes.length, 1);
+  assert.deepEqual(state.routes[0].targets, ['c_lin']);
+  assert.deepEqual(state.routes[0].bystanders, ['c_zhou']);
+  assert.equal(state.routes[0].method, 'model');
+  assert.equal(state.totals.inputTokens, 40);
+  assert.equal(state.totals.outputTokens, 9);
+  assert.equal(state.totals.cacheReadTokens, 20);
+  const markdown = formatTranscript({ group: { name: '测试群' }, members, state });
+  assert.match(markdown, /路由调用：1 次 · 输入 30 · 输出 5/);
+});
+
 test('prompt splits stable prefix from per-turn tail and omits the rewrite target', () => {
   const group = {
     name: '旧城书店的晚上',
@@ -160,6 +199,38 @@ test('prompt splits stable prefix from per-turn tail and omits the rewrite targe
   assert.match(tail, /这是本次发言的第 2 条回应；上一条来自 周野。/);
 });
 
+test('prompt tells an addressee and a bystander how to respond', () => {
+  const group = {
+    name: '测试群',
+    brief: '',
+    policy: { ...DEFAULT_POLICY },
+    budget: { ...DEFAULT_BUDGET },
+  };
+  const member = {
+    id: 'c_lin',
+    name: '林晚',
+    core: '店主。',
+    extended: '',
+    extendedEnabled: false,
+    public: { oneLiner: '店主', relations: {} },
+  };
+  const base = {
+    group,
+    members: [member, { id: 'c_zhou', name: '周野', public: { oneLiner: '电工', relations: {} } }],
+    activeMessages: [{ id: 'm_1', turnId: 'm_1', ts: 1, role: 'user', text: '谁去开门？', pinned: false }],
+    member,
+    sourceUserText: '谁去开门？',
+    replyIndex: 1,
+    previousName: '用户',
+  };
+  const addressed = buildPrompt({ ...base, routeRole: 'addressed' });
+  assert.match(addressed.messages.at(-1).content[0].text, /主要是对你说的/);
+  const bystander = buildPrompt({ ...base, routeRole: 'bystander' });
+  assert.match(bystander.messages.at(-1).content[0].text, /不是直接对你说的/);
+  const handoff = buildPrompt({ ...base, routeRole: 'handoff' });
+  assert.match(handoff.messages.at(-1).content[0].text, /把话交给了你/);
+});
+
 test('reply normalization strips only a leading speaker prefix', () => {
   assert.equal(normalizeReply('林晚：后门我锁的。', '林晚'), '后门我锁的。');
   assert.equal(normalizeReply('【林晚】后门我锁的。', '林晚'), '【林晚】后门我锁的。');
@@ -171,6 +242,13 @@ test('budget stops at either ceiling and ignores zero ceilings', () => {
   assert.equal(budgetStop(totals, { maxInputTokens: 99, maxOutputTokens: 1000 }), 'input');
   assert.equal(budgetStop(totals, { maxInputTokens: 1000, maxOutputTokens: 50 }), 'output');
   assert.equal(budgetStop(totals, { maxInputTokens: 0, maxOutputTokens: 0 }), null);
+});
+
+test('legacy policies gain smart routing defaults and clamp router fields', () => {
+  assert.deepEqual(normalizePolicy({ replyMode: 'mention-or-rotate' }), { ...DEFAULT_POLICY });
+  assert.equal(normalizePolicy({ maxMentionReplies: 0 }).maxMentionReplies, 1);
+  assert.equal(normalizePolicy({ bystanderChance: 150 }).bystanderChance, 100);
+  assert.equal(normalizePolicy({ smartRouting: false }).smartRouting, false);
 });
 
 test('member names are unique, bounded, and free of routing punctuation', () => {
