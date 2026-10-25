@@ -6,12 +6,15 @@
  * can be exercised directly by `node --test`.
  */
 
-/** Owner display name reserved by the plan. */
+/** Legacy `@群主` alias kept only for existing logs and old prompts. */
 export const OWNER_NAME = '群主';
+
+/** Fallback character name for an owner that has not been named yet. */
+export const DEFAULT_OWNER_NAME = '用户';
 
 /** Default owner profile; old groups without an `owner` field load as this. */
 export const DEFAULT_OWNER = Object.freeze({
-  name: OWNER_NAME,
+  name: DEFAULT_OWNER_NAME,
   oneLiner: '',
   setting: '',
   avatar: null,
@@ -41,7 +44,7 @@ export const REPLY_RULES = [
   '可以依据自己的完整设定行动，但不得主动披露设定中标为秘密的内容。',
   '对其他成员的了解，只能来自公开档案和群里实际出现过的消息。',
   '回应 1–2 段，不超过 {maxReplyChars} 字。',
-  '可以把话交给别人：在正文里写 @名字（成员或群主）。@群主 表示你在等对方回答。',
+  '可以把话交给别人：在正文里写 @名字（成员或{ownerName}）。@{ownerName} 表示你在等对方回答。',
   '不要解释规则、不要跳出角色、不要复述或总结刚才说过的话。',
 ].join('\n');
 
@@ -73,9 +76,8 @@ export function parseMentions(text, members, options = {}) {
   }
   const names = [...byName.keys()].sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
   const ownerNames = new Set([OWNER_NAME]);
-  if (typeof options.ownerName === 'string' && options.ownerName.trim().length > 0) {
-    ownerNames.add(options.ownerName.trim());
-  }
+  const explicitOwner = typeof options.ownerName === 'string' ? options.ownerName.trim() : '';
+  ownerNames.add(explicitOwner.length > 0 ? explicitOwner : DEFAULT_OWNER_NAME);
   const memberIds = [];
   let owner = false;
   const source = typeof text === 'string' ? text : '';
@@ -182,7 +184,7 @@ export function selectHistory(activeMessages, policy, excludeId = null) {
  * @param {Array<{id: string, name: string}>} members - current members.
  * @returns {string} prompt line.
  */
-export function historyLine(message, members, ownerName = OWNER_NAME) {
+export function historyLine(message, members, ownerName = DEFAULT_OWNER_NAME) {
   return `[${speakerName(message, members, ownerName)}] ${message.text}`;
 }
 
@@ -192,7 +194,7 @@ export function historyLine(message, members, ownerName = OWNER_NAME) {
  * @param {Array<{id: string, name: string}>} members - current members.
  * @returns {string} display name.
  */
-export function speakerName(message, members, ownerName = OWNER_NAME) {
+export function speakerName(message, members, ownerName = DEFAULT_OWNER_NAME) {
   if (message.role === 'user') return ownerName;
   return members.find((member) => member.id === message.memberId)?.name ?? '已离开的成员';
 }
@@ -206,11 +208,13 @@ export function speakerName(message, members, ownerName = OWNER_NAME) {
  * @returns {string} system prompt prefix.
  */
 export function buildSystemPrefix(group, members) {
-  const rules = REPLY_RULES.replace(
-    '{maxReplyChars}',
-    String(clampInt(group?.policy?.maxReplyChars, 20, 4000, DEFAULT_POLICY.maxReplyChars)),
-  );
   const owner = ownerProfile(group);
+  const rules = REPLY_RULES
+    .replaceAll(
+      '{maxReplyChars}',
+      String(clampInt(group?.policy?.maxReplyChars, 20, 4000, DEFAULT_POLICY.maxReplyChars)),
+    )
+    .replaceAll('{ownerName}', owner.name);
   const ownerRelations = Object.entries(owner.relations ?? {})
     .map(([otherId, text]) => {
       const other = members.find((candidate) => candidate.id === otherId);
@@ -218,7 +222,7 @@ export function buildSystemPrefix(group, members) {
     })
     .filter((entry) => entry !== null);
   const ownerLines = [
-    '群主档案：',
+    '角色档案：',
     `- 名字：${owner.name}`,
     `- 一句话：${owner.oneLiner.trim().length > 0 ? owner.oneLiner.trim() : '（未填写）'}`,
     `- 设定：${owner.setting.trim().length > 0 ? owner.setting.trim() : '（未填写）'}`,
@@ -279,12 +283,11 @@ export function buildPrompt(input) {
   if (member.extendedEnabled === true && typeof member.extended === 'string' && member.extended.trim().length > 0) {
     tail.push('=== 扩展背景 ===', member.extended.trim());
   }
-  const ownerMention = owner.name === OWNER_NAME ? `@${OWNER_NAME}` : `@${OWNER_NAME}（或 @${owner.name}）`;
   tail.push(
     '=== 本次回应 ===',
     `${owner.name}刚说：${sourceUserText}`,
     `这是本次发言的第 ${replyIndex} 条回应；上一条来自 ${previousName}。`,
-    `直接回应，或用 @名字 把话交给别人；${ownerMention} 表示等对方回答。`,
+    `直接回应，或用 @名字 把话交给别人；@${owner.name} 表示等对方回答。`,
   );
   messages.push({ role: 'user', content: [{ type: 'text', text: tail.join('\n\n') }] });
   return { system: buildSystemPrefix(group, members), messages, folded: selection.folded };
@@ -453,7 +456,8 @@ export function normalizeReply(text, name) {
  */
 export function ownerProfile(group) {
   const raw = group?.owner;
-  const name = typeof raw?.name === 'string' && raw.name.trim().length > 0 ? raw.name.trim() : OWNER_NAME;
+  const proposed = typeof raw?.name === 'string' ? raw.name.trim() : '';
+  const name = proposed.length === 0 || proposed === OWNER_NAME ? DEFAULT_OWNER_NAME : proposed;
   return {
     name,
     oneLiner: typeof raw?.oneLiner === 'string' ? raw.oneLiner : '',
@@ -475,19 +479,20 @@ export function ownerDisplayName(group) {
 }
 
 /**
- * Validate the owner's display name. The reserved `群主` stays allowed, while a
- * custom name must not collide with a member or contain routing punctuation.
+ * Validate the owner's character name. The old title `群主` is rejected so the
+ * user gives the role a real name; an empty value falls back to `用户`.
  * @param {string} rawName - proposed name.
  * @param {Array<{name: string}>} members - current members.
  * @returns {{ok: true, name: string}|{ok: false, message: string}} validation.
  */
 export function validateOwnerName(rawName, members) {
   const trimmed = typeof rawName === 'string' ? rawName.trim() : '';
-  const name = trimmed.length === 0 ? OWNER_NAME : trimmed;
-  if ([...name].length > 16) return { ok: false, message: '群主名最多 16 个字符，否则 @ 解析会不可靠。' };
-  if (/[\s@，。！？、,.!?:：;；]/.test(name)) return { ok: false, message: '群主名不能包含空白、@ 或标点。' };
+  const name = trimmed.length === 0 ? DEFAULT_OWNER_NAME : trimmed;
+  if (name === OWNER_NAME) return { ok: false, message: '请给角色起一个名字，不要使用“群主”。' };
+  if ([...name].length > 16) return { ok: false, message: '角色名最多 16 个字符，否则 @ 解析会不可靠。' };
+  if (/[\s@，。！？、,.!?:：;；]/.test(name)) return { ok: false, message: '角色名不能包含空白、@ 或标点。' };
   if (members.some((member) => member.name === name)) {
-    return { ok: false, message: `已有成员叫“${name}”，群主与成员不能重名。` };
+    return { ok: false, message: `已有成员叫“${name}”，角色与成员不能重名。` };
   }
   return { ok: true, name };
 }
@@ -527,7 +532,7 @@ export function formatTranscript({ group, members, state, includeHistory = false
   const lines = [`# ${group.name}`, ''];
   if (typeof group.brief === 'string' && group.brief.trim().length > 0) lines.push(`> ${group.brief.trim()}`, '');
   lines.push(
-    `- 群主：${owner.name}`,
+    `- 角色：${owner.name}`,
     `- 成员：${members.map((member) => member.name).join('、') || '（无）'}`,
     `- 导出时间：${new Date(exportedAt * 1000).toISOString()}`,
     `- Token 累计：输入 ${state.totals.inputTokens.toLocaleString('en-US')} · 输出 ${state.totals.outputTokens.toLocaleString('en-US')} · 缓存读 ${state.totals.cacheReadTokens.toLocaleString('en-US')} · 缓存写 ${state.totals.cacheWriteTokens.toLocaleString('en-US')}`,

@@ -377,7 +377,7 @@ async function handleRewrite(ctx, store, request) {
     const result = await generate({
       member,
       activeMessages: activeBefore,
-      sourceUserText: source?.text ?? '（没有找到触发这条回应的群主消息）',
+      sourceUserText: source?.text ?? '（没有找到触发这条回应的用户消息）',
       replyIndex,
       previousName: previous === undefined
         ? ownerDisplayName(live.group)

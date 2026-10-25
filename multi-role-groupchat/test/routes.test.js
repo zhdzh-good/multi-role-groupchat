@@ -229,7 +229,7 @@ test('owner settings travel through the route and a custom owner name stops the 
   assert.equal(finalState.state.messages[0].memberName, '阿明');
 
   const exported = await call(routes, '/api/groupchat.export', { body: { groupId } });
-  assert.match(exported.json.markdown, /- 群主：阿明/);
+  assert.match(exported.json.markdown, /- 角色：阿明/);
   assert.match(exported.json.markdown, /### 第 1 轮 · 阿明/);
 });
 

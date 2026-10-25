@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { DEFAULT_BUDGET, DEFAULT_POLICY, formatTranscript } from '../lib/protocol.js';
-import { GroupChatError, GroupStore } from '../lib/store.js';
+import { GroupChatError, GroupStore, normalizeOwner } from '../lib/store.js';
 
 /**
  * Create an isolated store rooted in a fresh temporary directory.
@@ -36,8 +36,9 @@ test('create, append, reload, supersede, pin, notice, export', async (t) => {
   assert.equal(live.group.policy.maxHandoffDepth, DEFAULT_POLICY.maxHandoffDepth);
   assert.equal(live.group.budget.maxInputTokens, DEFAULT_BUDGET.maxInputTokens);
   assert.equal(live.members.length, 2);
-  assert.equal(live.group.owner.name, '群主');
+  assert.equal(live.group.owner.name, '用户');
   assert.equal(live.group.owner.setting, '');
+  assert.equal(normalizeOwner({ name: '群主' }, null).name, '用户');
   assert.equal(live.members[0].name, '林晚');
   assert.match(live.members[0].core, /电闸/);
 
@@ -242,11 +243,11 @@ test('owner profile persists, validates, and labels owner messages', async (t) =
   );
   await assert.rejects(
     reloaded.saveMember(live.gid, { memberId: live.members[1].id, name: '阿明' }),
-    (error) => error instanceof GroupChatError && /群主/.test(error.message),
+    (error) => error instanceof GroupChatError && /角色/.test(error.message),
   );
   await assert.rejects(
     reloaded.updateGroup(live.gid, { owner: { name: '阿明', setting: 'x'.repeat(20001) } }),
-    (error) => error instanceof GroupChatError && /群主设定/.test(error.message),
+    (error) => error instanceof GroupChatError && /角色设定/.test(error.message),
   );
 });
 

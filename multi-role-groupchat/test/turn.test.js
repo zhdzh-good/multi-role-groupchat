@@ -76,7 +76,7 @@ test('one mention then two handoffs: three generations, last speaker excluded', 
   assert.equal(outcome.generated, 3);
   assert.deepEqual(io.calls.map((call) => call.member.id), ['c_lin', 'c_zhou', 'c_lin']);
   assert.deepEqual(io.calls.map((call) => call.replyIndex), [1, 2, 3]);
-  assert.deepEqual(io.calls.map((call) => call.previousName), ['群主', '林晚', '周野']);
+  assert.deepEqual(io.calls.map((call) => call.previousName), ['用户', '林晚', '周野']);
   assert.equal(io.messages.length, 4);
   const replies = io.messages.filter((message) => message.role === 'member');
   assert.deepEqual(replies.map((message) => message.replyIndex), [1, 2, 3]);
