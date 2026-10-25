@@ -156,6 +156,16 @@ test('members can be edited, added, and validated', async (t) => {
   assert.deepEqual(updated.model, { provider: 'deepseek', model: 'deepseek-chat' });
   assert.deepEqual(updated.public.relations, { [live.members[1].id]: '熟人' });
 
+  // Avatars are opaque strings on the Host (the browser stores a 128×128 data URL).
+  const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC';
+  const withAvatar = await store.saveMember(live.gid, { memberId: first.id, name: '甲一', avatar });
+  assert.equal(withAvatar.avatar, avatar);
+  const reloadedAvatar = await new GroupStore(store.root).stateView(live.gid);
+  assert.equal(reloadedAvatar.members.find((member) => member.id === first.id).avatar, avatar);
+  // Removal is an empty string, which the UI renders as the initial fallback.
+  const withoutAvatar = await store.saveMember(live.gid, { memberId: first.id, name: '甲一', avatar: '' });
+  assert.equal(withoutAvatar.avatar, '');
+
   await assert.rejects(
     store.saveMember(live.gid, { memberId: live.members[1].id, name: '甲一' }),
     (error) => error instanceof GroupChatError && /重名/.test(error.message),

@@ -70,7 +70,7 @@ plugin_manager action=install_bundle target=/home/zqy/桌面/plugin/multi-role-g
 
 ## 已知限制
 
-- 成员头像使用首字色块，不读取 `avatar` 图片文件。
+- 头像在「管理 → 成员」里上传 PNG / JPEG / WebP，客户端裁成 128×128 PNG 后以 data URL 存入 `card.json`；未设置时显示首字色块。
 - 成员最多 3 个；首版不提供移除成员 / 删除群，避免误删设定与历史。
 - 「停止」保留已生成的部分在界面上，但不写入有效消息；重新加载后只看到已完成的回复。
 - 重写只替换目标那一条，不继续触发接话链。

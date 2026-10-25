@@ -41,9 +41,12 @@ window.__ModuleLoader__.load({
 .mgc-threadEmptyGlyph{opacity:.55}
 .mgc-msg{display:flex;gap:10px;padding:7px 0;position:relative}
 .mgc-msgCont{padding-top:1px}
-.mgc-msgCont .mgc-av{visibility:hidden}
 .mgc-av{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;flex:none;margin-top:1px;color:#fff;font-size:12px;font-weight:600;line-height:1;letter-spacing:.02em;user-select:none}
 .mgc-avSm{width:26px;height:26px;font-size:11px}
+.mgc-avImg{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.mgc-avatarRow{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.mgc-avatarHint{color:var(--dsw-alias-label-secondary);font-size:11px;line-height:17px}
+.mgc-avatarActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .mgc-avOwner{background:var(--dsw-alias-brand-primary)}
 .mgc-body{flex:1;min-width:0}
 .mgc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:20px;font-size:12px;line-height:20px}
@@ -292,6 +295,10 @@ window.__ModuleLoader__.load({
       'members.add': '新增成员',
       'members.editing': '编辑 {name}',
       'members.new': '新成员',
+      'members.avatar': '头像',
+      'members.avatarChoose': '选择图片',
+      'members.avatarRemove': '移除头像',
+      'members.avatarHint': '支持 PNG / JPEG / WebP，会裁成 128×128 存入成员卡。',
       'members.name': '显示名（@ 用，≤ 16 字符）',
       'members.oneLiner': '公开档案 · 一句话',
       'members.relations': '公开关系',
@@ -438,6 +445,10 @@ window.__ModuleLoader__.load({
       'members.add': 'Add member',
       'members.editing': 'Editing {name}',
       'members.new': 'New member',
+      'members.avatar': 'Avatar',
+      'members.avatarChoose': 'Choose image',
+      'members.avatarRemove': 'Remove avatar',
+      'members.avatarHint': 'PNG / JPEG / WebP, center-cropped to 128×128 and stored in the member card.',
       'members.name': 'Display name (used by @, up to 16 characters)',
       'members.oneLiner': 'Public one-liner',
       'members.relations': 'Public relationships',
@@ -1090,16 +1101,63 @@ window.__ModuleLoader__.load({
      * @param {{name: string, color?: string|null, owner?: boolean, small?: boolean}} props - avatar props.
      * @returns {any} element.
      */
-    function Avatar({ name, color, owner = false, small = false }) {
+    function Avatar({ name, color, owner = false, small = false, src = null }) {
+      const image = typeof src === 'string' && /^data:image\/(png|jpeg|webp);base64,/i.test(src);
       return h(
         'span',
         {
           className: `mgc-av${small ? ' mgc-avSm' : ''}${owner ? ' mgc-avOwner' : ''}`,
-          style: owner ? undefined : { background: color ?? '#6a7280' },
+          style: owner || image ? undefined : { background: color ?? '#6a7280' },
           'aria-hidden': true,
         },
-        initialOf(name),
+        image ? h('img', { className: 'mgc-avImg', src, alt: '' }) : initialOf(name),
       );
+    }
+
+    /**
+     * Read an image file and center-crop it into a 128×128 PNG data URL.
+     * Keeping the avatar in `card.json` avoids a second binary route and keeps
+     * the member card self-contained when the data directory is copied.
+     * @param {File} file - chosen image.
+     * @returns {Promise<string>} data URL.
+     */
+    function readAvatarFile(file) {
+      return new Promise((resolve, reject) => {
+        if (typeof file?.type === 'string' && !file.type.startsWith('image/')) {
+          reject(new Error('请选择图片文件（PNG / JPEG / WebP）。'));
+          return;
+        }
+        if (typeof file?.size === 'number' && file.size > 8 * 1024 * 1024) {
+          reject(new Error('图片太大，请选择 8 MB 以内的图片。'));
+          return;
+        }
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+          try {
+            const edge = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = edge;
+            canvas.height = edge;
+            const context = canvas.getContext('2d');
+            if (context === null) throw new Error('浏览器无法处理图片。');
+            const scale = Math.max(edge / image.width, edge / image.height);
+            const width = image.width * scale;
+            const height = image.height * scale;
+            context.drawImage(image, (edge - width) / 2, (edge - height) / 2, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          } catch (error) {
+            reject(error);
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('无法读取这张图片。'));
+        };
+        image.src = url;
+      });
     }
 
     /** @param {{children: any}} props - children. @returns {any} dot pulse. */
@@ -1148,7 +1206,7 @@ window.__ModuleLoader__.load({
           className: `mgc-msg${continuation ? ' mgc-msgCont' : ''}${message.folded ? ' mgc-foldMsg' : ''}`,
           'data-message-id': message.id,
         },
-        h(Avatar, { name, color, owner }),
+        h(Avatar, { name, color, owner, src: member?.avatar ?? null }),
         h(
           'div',
           { className: 'mgc-body' },
@@ -1227,7 +1285,11 @@ window.__ModuleLoader__.load({
       return h(
         'article',
         { className: 'mgc-msg', 'aria-live': 'polite' },
-        h(Avatar, { name: streaming.memberName, color: avatarColor(members, streaming.memberId) }),
+        h(Avatar, {
+          name: streaming.memberName,
+          color: avatarColor(members, streaming.memberId),
+          src: members.find((member) => member.id === streaming.memberId)?.avatar ?? null,
+        }),
         h(
           'div',
           { className: 'mgc-body' },
@@ -1479,6 +1541,7 @@ window.__ModuleLoader__.load({
                             color: member.id === '__owner__' ? null : avatarColor(state.members, member.id),
                             owner: member.id === '__owner__',
                             small: true,
+                            src: member.id === '__owner__' ? null : member.avatar ?? null,
                           }),
                           h('span', { style: { flex: 1, minWidth: 0 } }, member.name),
                         ),
@@ -2037,6 +2100,9 @@ window.__ModuleLoader__.load({
     function MemberForm({ member, members, state, t, store, onDone, onCancel }) {
       const others = members.filter((candidate) => candidate.id !== member?.id);
       const [name, setName] = useState(member?.name ?? '');
+      const [avatar, setAvatar] = useState(member?.avatar ?? '');
+      const [avatarError, setAvatarError] = useState(null);
+      const avatarInput = useRef(null);
       const [oneLiner, setOneLiner] = useState(member?.public?.oneLiner ?? '');
       const [relations, setRelations] = useState(() => ({ ...(member?.public?.relations ?? {}) }));
       const [core, setCore] = useState(member?.core ?? '');
@@ -2053,6 +2119,17 @@ window.__ModuleLoader__.load({
       }, [store]);
       const coreLength = [...core].length;
       const extendedLength = [...extended].length;
+      const chooseAvatar = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file === undefined) return;
+        try {
+          setAvatar(await readAvatarFile(file));
+          setAvatarError(null);
+        } catch (reason) {
+          setAvatarError(reason instanceof Error ? reason.message : String(reason));
+        }
+      };
       const save = async () => {
         if (name.trim().length === 0) {
           setError(t('members.name'));
@@ -2068,6 +2145,7 @@ window.__ModuleLoader__.load({
           await store.saveMember({
             ...(member === null ? {} : { memberId: member.id }),
             name: name.trim(),
+            avatar,
             oneLiner,
             relations,
             core,
@@ -2085,6 +2163,45 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         null,
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('div', { className: 'mgc-label' }, t('members.avatar')),
+          h(
+            'div',
+            { className: 'mgc-avatarRow' },
+            h(Avatar, { name: name || '?', color: avatarColor(members, member?.id), src: avatar }),
+            h(
+              'div',
+              { style: { minWidth: 0 } },
+              h(
+                'div',
+                { className: 'mgc-avatarActions' },
+                h(
+                  'button',
+                  { type: 'button', className: 'mgc-btn', onClick: () => avatarInput.current?.click() },
+                  t('members.avatarChoose'),
+                ),
+                avatar.length === 0
+                  ? null
+                  : h(
+                      'button',
+                      { type: 'button', className: 'mgc-btn mgc-btnDanger', onClick: () => setAvatar('') },
+                      t('members.avatarRemove'),
+                    ),
+              ),
+              h('div', { className: 'mgc-avatarHint', style: { marginTop: '6px' } }, t('members.avatarHint')),
+              avatarError !== null ? h('div', { className: 'mgc-error', style: { marginTop: '4px' } }, avatarError) : null,
+            ),
+          ),
+          h('input', {
+            ref: avatarInput,
+            type: 'file',
+            accept: 'image/png,image/jpeg,image/webp',
+            style: { display: 'none' },
+            onChange: chooseAvatar,
+          }),
+        ),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2252,7 +2369,7 @@ window.__ModuleLoader__.load({
                       className: 'mgc-memberRow',
                       onClick: () => setEditing(member.id),
                     },
-                    h(Avatar, { name: member.name, color: avatarColor(state.members, member.id), small: true }),
+                    h(Avatar, { name: member.name, color: avatarColor(state.members, member.id), small: true, src: member.avatar ?? null }),
                     h(
                       'span',
                       { className: 'mgc-memberText' },
