@@ -41,6 +41,10 @@ node --check client.js
 详细的实现、数据格式、稳定性测试与已知限制见
 [插件 README](./multi-role-groupchat/README.md)。
 
+## Roadmap
+
+后续任务、优先级与验收标准见 [ROADMAP.md](./ROADMAP.md)。
+
 ## License
 
 MIT © 2026 [zhdzh-good](https://github.com/zhdzh-good)

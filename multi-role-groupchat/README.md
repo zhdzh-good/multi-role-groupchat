@@ -91,6 +91,10 @@ plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupch
 - 多标签页之间没有实时推送；面板重新挂载或生成中轮询时同步。切换面板不会中断进行中的生成，但关闭页面会中断。
 - 浏览器端的视觉与交互（主题、深浅色、窄屏）已按宿主 token 编写，但本环境无法截图验证；交付时只声明静态与 Host/Client 接线验证结果。
 
+## Roadmap
+
+后续任务与优先级见仓库根目录 [ROADMAP.md](../ROADMAP.md)。
+
 ## License
 
 MIT © 2026 [zhdzh-good](https://github.com/zhdzh-good)
