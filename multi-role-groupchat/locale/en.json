@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Multi-role Group Chat",
+    "description": "A group-chat panel where you are the owner and two or three AI members talk to each other with @ handoffs, pins, rewrites, budgets, and Markdown export."
+  }
+}

@@ -1,0 +1,7 @@
+# Multi-role group chat.
+#
+# One Host row owns storage and model calls; its Client half registers the
+# `groupchat` main panel, the sidebar entry, and the settings section.
+- insert:
+    - id: multi-role-groupchat
+      name: '@local/multi-role-groupchat'
