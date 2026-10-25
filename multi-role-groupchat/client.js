@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/multi-role-groupchat',
+  id: '@zhdzh-good/multi-role-groupchat',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -2858,7 +2858,7 @@ window.__ModuleLoader__.load({
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'groupchat: dictionaries');
       ctx.effect(() => {
         const tag = document.createElement('style');
-        tag.dataset.plugin = '@local/multi-role-groupchat';
+        tag.dataset.plugin = '@zhdzh-good/multi-role-groupchat';
         tag.dataset.pluginCss = `${NS}/panel.css`;
         tag.textContent = CSS;
         document.head.appendChild(tag);

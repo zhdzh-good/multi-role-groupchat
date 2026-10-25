@@ -90,3 +90,9 @@ plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupch
 - 钉住的消息会按计划书移到 prompt 前部，因此“钉住一条旧消息”会改变此前的缓存前缀；未钉住的线性对话前缀保持稳定。
 - 多标签页之间没有实时推送；面板重新挂载或生成中轮询时同步。切换面板不会中断进行中的生成，但关闭页面会中断。
 - 浏览器端的视觉与交互（主题、深浅色、窄屏）已按宿主 token 编写，但本环境无法截图验证；交付时只声明静态与 Host/Client 接线验证结果。
+
+## License
+
+MIT © 2026 [zhdzh-good](https://github.com/zhdzh-good)
+
+仓库：https://github.com/zhdzh-good/multi-role-groupchat

@@ -4,4 +4,4 @@
 # `groupchat` main panel, the sidebar entry, and the settings section.
 - insert:
     - id: multi-role-groupchat
-      name: '@local/multi-role-groupchat'
+      name: '@zhdzh-good/multi-role-groupchat'

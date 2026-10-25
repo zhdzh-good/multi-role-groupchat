@@ -1,5 +1,5 @@
 {
-  "name": "@local/multi-role-groupchat",
+  "name": "@zhdzh-good/multi-role-groupchat",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,8 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dsh": {
     "bundle": {
@@ -36,5 +37,16 @@
   },
   "scripts": {
     "test": "node --test test/"
+  },
+  "author": "zhdzh-good",
+  "license": "MIT",
+  "homepage": "https://github.com/zhdzh-good/multi-role-groupchat#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhdzh-good/multi-role-groupchat.git",
+    "directory": "multi-role-groupchat"
+  },
+  "bugs": {
+    "url": "https://github.com/zhdzh-good/multi-role-groupchat/issues"
   }
 }
