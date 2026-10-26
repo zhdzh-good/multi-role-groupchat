@@ -1,5 +1,7 @@
 # 多角色群聊 · Multi-role Group Chat
 
+[![CI](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml/badge.svg)](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml)
+
 > 当前版本：**v1.3.2** · 仓库根目录 [README](../README.md)
 
 一个 DeepSeek Harness Web GUI 插件：**你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天**。消息默认全群可见；任何成员都可以用 `@名字` 把话交给别人，`@你的角色名` 表示交还控制。
@@ -90,6 +92,8 @@ export/script.md
 cd multi-role-groupchat
 npm test                    # 96 个确定性测试（协议、路由、导入导出、编排、存储、HTTP、稳定性、私有字段隔离、接话链回归、QA fixture）
 node --check client.js      # 浏览器模块语法
+npm run check:locales       # 中英字典 key 对齐
+npm pack --dry-run          # 检查发布包内容
 ```
 
 稳定性压测默认 80 轮随机对话；可以调参跑更久：

@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: multi-role-groupchat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Deterministic tests
+        run: npm test
+
+      - name: Browser module syntax
+        run: |
+          node --check client.js
+          node --check index.js
+
+      - name: Locale key parity
+        run: npm run check:locales
+
+      - name: Package dry run
+        run: npm pack --dry-run

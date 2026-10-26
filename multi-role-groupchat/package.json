@@ -19,6 +19,7 @@
     "locale/*.json",
     "icon.svg",
     "assets/icon-180.png",
+    "scripts/check-locales.mjs",
     "README.md",
     "LICENSE"
   ],
@@ -43,7 +44,9 @@
     "qa:router:model": "node qa/router/run.mjs --mode model",
     "qa:roleplay": "node qa/roleplay/run.mjs",
     "qa:roleplay:dry": "node qa/roleplay/run.mjs --dry-run --out qa/reports/roleplay-dry-run.md",
-    "qa:sweep": "node qa/router/sweep.mjs --out qa/reports/router-sweep.md"
+    "qa:sweep": "node qa/router/sweep.mjs --out qa/reports/router-sweep.md",
+    "check:locales": "node scripts/check-locales.mjs",
+    "check": "npm test && node --check client.js && npm run check:locales && npm pack --dry-run"
   },
   "author": "zhdzh-good",
   "license": "MIT",

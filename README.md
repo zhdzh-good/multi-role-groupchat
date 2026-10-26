@@ -1,5 +1,7 @@
 # multi-role-groupchat
 
+[![CI](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml/badge.svg)](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml)
+
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web GUI 的
 **多角色群聊插件**：你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天。消息默认全群可见，
 谁都可以用 `@名字` 把话交给别人。成员可以拥有只给自己看的私有记忆和私人关系。
@@ -100,7 +102,11 @@ dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat
 cd multi-role-groupchat
 npm test
 node --check client.js
+npm run check:locales
+npm pack --dry-run
 ```
+
+push / PR 会自动跑同一组检查，见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
 
 详细的协议、数据格式、稳定性测试与已知限制见
 [插件 README](./multi-role-groupchat/README.md)。路由评测见
