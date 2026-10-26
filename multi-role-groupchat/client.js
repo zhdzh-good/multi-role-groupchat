@@ -185,13 +185,197 @@ window.__ModuleLoader__.load({
 .mgc-createEmbed{width:100%}
 .mgc-typingLabel{color:var(--dsw-alias-label-secondary);font-size:12px}
 .mgc-menuRow:disabled{opacity:.45;cursor:default}
-@media (max-width:720px){
-.mgc-header{flex-direction:column;gap:10px}
-.mgc-headActions{width:100%;justify-content:flex-end}
-.mgc-drawer{width:100%}
-.mgc-row2,.mgc-row3{grid-template-columns:1fr}
-.mgc-thread{padding-left:14px;padding-right:14px}
+/* ── v1.3 · fixed dark game-panel theme ─────────────────────────────── */
+.mgc-page,.mgc-onboarding,.mgc-settingsPage,.mgc-loading,.mgc-emptyState{
+color-scheme:dark;
+--mgc-bg:#090b0e;
+--mgc-panel:#11151a;
+--mgc-panel2:#161b21;
+--mgc-line:rgba(255,255,255,.08);
+--mgc-lineStrong:rgba(255,255,255,.16);
+--mgc-text:#f2f3f5;
+--mgc-muted:#9aa1aa;
+--mgc-yellow:#f4d21f;
+--mgc-yellowSoft:rgba(244,210,31,.15);
+--mgc-cyan:#67d9f2;
+--dsw-alias-bg-base:var(--mgc-bg);
+--dsw-alias-bg-layer-1:var(--mgc-panel);
+--dsw-alias-bg-overlay:#181d24;
+--dsw-alias-label-primary:var(--mgc-text);
+--dsw-alias-label-secondary:var(--mgc-muted);
+--dsw-alias-border-l1:var(--mgc-line);
+--dsw-alias-border-l2:var(--mgc-lineStrong);
+--dsw-alias-brand-primary:var(--mgc-yellow);
+--dsw-alias-state-warn-primary:#f4b740;
+--dsw-alias-state-error-primary:#ff6b6b;
+--dsw-alias-state-success-primary:#62d39a;
+}
+.mgc-page{flex-direction:row;background:radial-gradient(900px 620px at 78% -12%,rgba(103,217,242,.09),transparent 62%),radial-gradient(760px 560px at 8% 112%,rgba(244,210,31,.06),transparent 64%),var(--mgc-bg);color:var(--mgc-text)}
+.mgc-main{position:relative;display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;background:radial-gradient(760px 480px at 78% 0%,rgba(103,217,242,.035),transparent 66%),linear-gradient(180deg,rgba(255,255,255,.012),transparent 22%)}
+.mgc-rail{position:relative;z-index:8;display:flex;flex-direction:column;flex:none;width:300px;min-height:0;padding:18px 14px 14px;border-right:1px solid var(--mgc-line);background:linear-gradient(180deg,rgba(14,17,22,.98),rgba(8,10,13,.96));box-shadow:18px 0 50px rgba(0,0,0,.2)}
+.mgc-railHead{flex:none;padding:2px 6px 14px}
+.mgc-railEyebrow{color:var(--mgc-cyan);font-size:10px;font-weight:600;letter-spacing:.18em;line-height:16px;opacity:.8}
+.mgc-railTitleRow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:5px}
+.mgc-railTitle{margin:0;color:var(--mgc-text);font-size:22px;font-weight:700;line-height:30px;letter-spacing:.02em}
+.mgc-railCount{color:var(--mgc-muted);font-size:11px;font-variant-numeric:tabular-nums}
+.mgc-railList{display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow:auto;padding:2px 2px 12px;scrollbar-gutter:stable}
+.mgc-railRow{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:72px;padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(255,255,255,.035);color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background .14s,border-color .14s,transform .14s;overflow:hidden}
+.mgc-railRow:hover:not(:disabled){background:rgba(255,255,255,.065);border-color:rgba(255,255,255,.13);transform:translateX(1px)}
+.mgc-railRow:focus-visible{outline:2px solid var(--mgc-yellow);outline-offset:2px}
+.mgc-railRow:disabled{opacity:.55;cursor:default}
+.mgc-railRow[data-active=true]{border-color:rgba(244,210,31,.55);background:linear-gradient(90deg,rgba(244,210,31,.16),rgba(244,210,31,.035));box-shadow:inset 0 0 0 1px rgba(244,210,31,.08)}
+.mgc-railRow[data-active=true]:before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--mgc-yellow)}
+.mgc-railAvatar{display:flex;flex:none}
+.mgc-railAvatar .mgc-av{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.18);font-size:14px}
+.mgc-railText{display:flex;flex-direction:column;flex:1;min-width:0;gap:2px}
+.mgc-railTop{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
+.mgc-railName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mgc-text);font-size:13px;font-weight:600;line-height:19px}
+.mgc-railTime{flex:none;color:var(--mgc-muted);font-size:10px;font-variant-numeric:tabular-nums;line-height:16px}
+.mgc-railPreview{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mgc-muted);font-size:11px;line-height:17px}
+.mgc-railMeta{color:rgba(154,161,170,.75);font-size:10px;line-height:16px}
+.mgc-railFoot{flex:none;padding:10px 2px 2px;border-top:1px solid var(--mgc-line)}
+.mgc-railNew{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;height:36px;border:1px solid rgba(244,210,31,.35);border-radius:12px;background:rgba(244,210,31,.08);color:var(--mgc-yellow);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.mgc-railNew:hover:not(:disabled){background:rgba(244,210,31,.15);border-color:rgba(244,210,31,.65)}
+.mgc-railNew:focus-visible{outline:2px solid var(--mgc-yellow);outline-offset:2px}
+.mgc-railNew:disabled{opacity:.45;cursor:default}
+.mgc-railHint{margin-top:8px;color:rgba(154,161,170,.62);font-size:10px;line-height:15px;text-align:center}
+.mgc-railToggle{display:none;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:1px solid var(--mgc-lineStrong);border-radius:9px;background:rgba(255,255,255,.04);color:var(--mgc-text);cursor:pointer;flex:none}
+.mgc-railToggle:hover{background:rgba(255,255,255,.08)}
+.mgc-railToggle:focus-visible{outline:2px solid var(--mgc-yellow);outline-offset:2px}
+.mgc-railBackdrop{display:none}
+.mgc-header{position:relative;padding:18px 26px 14px;border-bottom:1px solid var(--mgc-line);background:linear-gradient(180deg,rgba(255,255,255,.018),transparent);gap:18px}
+.mgc-header:before{content:"";position:absolute;left:26px;right:26px;top:0;height:1px;background:linear-gradient(90deg,var(--mgc-cyan),rgba(103,217,242,.15) 26%,transparent 62%);opacity:.55}
+[data-platform=darwin] .mgc-header{padding-top:calc(18px + var(--dsh-frame-top-clearance,0px))}
+.mgc-headMain{gap:5px;flex:1;min-width:0}
+.mgc-titleRow{gap:10px}
+.mgc-groupTitle{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mgc-text);font-size:22px;font-weight:700;line-height:30px;letter-spacing:.01em}
+.mgc-live{display:inline-flex;align-items:center;gap:5px;flex:none;height:20px;padding:0 7px;border:1px solid rgba(103,217,242,.25);border-radius:10px;background:rgba(103,217,242,.07);color:var(--mgc-cyan);font-size:10px;font-weight:600;line-height:18px;letter-spacing:.04em}
+.mgc-live i{display:block;width:5px;height:5px;border-radius:50%;background:var(--mgc-cyan);box-shadow:0 0 7px rgba(103,217,242,.9)}
+.mgc-sub{gap:7px;color:var(--mgc-muted);font-size:11px;line-height:18px}
+.mgc-dot{background:rgba(154,161,170,.45)}
+.mgc-headActions{gap:7px;padding-top:2px}
+.mgc-btn{height:30px;padding:0 12px;border:1px solid var(--mgc-lineStrong);border-radius:9px;background:rgba(255,255,255,.035);color:var(--mgc-text);font-size:12px}
+.mgc-btn:hover:not(:disabled){background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.24)}
+.mgc-btnPrimary{background:var(--mgc-yellow);border-color:var(--mgc-yellow);color:#121418}
+.mgc-btnPrimary:hover:not(:disabled){background:#ffe45c;border-color:#ffe45c;color:#121418}
+.mgc-btnDanger{color:#ff7d7d;border-color:rgba(255,107,107,.4)}
+.mgc-iconBtn{color:var(--mgc-muted)}
+.mgc-iconBtn:hover:not(:disabled){background:rgba(255,255,255,.08);color:var(--mgc-text)}
+.mgc-budgetBar{max-width:300px;background:rgba(255,255,255,.09)}
+.mgc-budgetFill{background:var(--mgc-yellow)}
+.mgc-budgetFill[data-over=true]{background:#ff6b6b}
+.mgc-threadWrap{background:transparent}
+.mgc-thread{max-width:1000px;padding:24px 32px 44px}
+.mgc-msg{align-items:flex-start;gap:12px;padding:8px 0}
+.mgc-av{width:34px;height:34px;border-radius:12px;border:1px solid rgba(255,255,255,.12);font-size:12px}
+.mgc-avSm{width:28px;height:28px;border-radius:10px}
+.mgc-avOwner{background:linear-gradient(145deg,#f4d21f,#c7a700);color:#17191c;border-color:rgba(244,210,31,.5)}
+.mgc-avImg{border-radius:inherit}
+.mgc-msgOwner{flex-direction:row-reverse}
+.mgc-msgOwner .mgc-body{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
+.mgc-msgOwner .mgc-meta{justify-content:flex-end}
+.mgc-msgOwner .mgc-actions{justify-content:flex-end}
+.mgc-msgOwner .mgc-av{border-color:rgba(244,210,31,.42);box-shadow:0 0 0 3px rgba(244,210,31,.06)}
+.mgc-body{max-width:min(78%,760px)}
+.mgc-meta{min-height:18px;gap:7px;font-size:11px;line-height:18px}
+.mgc-name{font-size:12px;font-weight:600;color:#dfe3e8}
+.mgc-msgOwner .mgc-name{color:#f3e8b0}
+.mgc-time{color:rgba(154,161,170,.72);font-size:10px}
+.mgc-text{width:fit-content;max-width:100%;margin-top:2px;padding:10px 14px;border:1px solid rgba(255,255,255,.075);border-radius:4px 14px 14px 14px;background:rgba(255,255,255,.075);color:#e9ecef;font-size:14px;line-height:1.68;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.mgc-msgOwner .mgc-text{border-color:rgba(255,255,255,.62);border-radius:14px 4px 14px 14px;background:linear-gradient(145deg,#f7f4eb,#e9e4d7);color:#17191c;box-shadow:0 5px 20px rgba(0,0,0,.22)}
+.mgc-msgOwner .mgc-mention{color:#755c00;background:rgba(160,124,0,.13)}
+.mgc-mention{color:var(--mgc-yellow);background:rgba(244,210,31,.1)}
+.mgc-actions{margin-top:2px;gap:1px}
+.mgc-action{color:rgba(154,161,170,.72);font-size:10px}
+.mgc-action:hover:not(:disabled){background:rgba(255,255,255,.07);color:var(--mgc-text)}
+.mgc-usage{color:rgba(154,161,170,.55);font-size:10px}
+.mgc-tag{height:17px;border-radius:8px;background:rgba(255,255,255,.07);color:var(--mgc-muted);font-size:9px;line-height:17px}
+.mgc-tagPin{color:var(--mgc-yellow);background:rgba(244,210,31,.11)}
+.mgc-tagWarn{color:#f4b740;background:rgba(244,183,64,.11)}
+.mgc-typing{padding:10px 0 4px 46px;color:var(--mgc-muted);font-size:12px}
+.mgc-noticeRow{padding:8px 0}
+.mgc-notice{border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(255,255,255,.045);color:var(--mgc-muted);font-size:11px}
+.mgc-noticeWarn{border-color:rgba(244,183,64,.2);color:#f4b740;background:rgba(244,183,64,.07)}
+.mgc-foldBtn{border-color:var(--mgc-line);color:var(--mgc-muted);background:rgba(255,255,255,.025)}
+.mgc-foldBtn:hover{color:var(--mgc-text);background:rgba(255,255,255,.06)}
+.mgc-composer{padding:11px 26px 17px;border-top:1px solid var(--mgc-line);background:linear-gradient(180deg,rgba(9,11,14,.55),#090b0e)}
+.mgc-composerInner{max-width:1000px}
+.mgc-inputWrap{padding:9px 9px 7px 14px;border:1px solid rgba(255,255,255,.13);border-radius:18px;background:rgba(17,21,26,.94);box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.mgc-inputWrap:focus-within{border-color:rgba(244,210,31,.62);box-shadow:0 0 0 3px rgba(244,210,31,.07),0 8px 30px rgba(0,0,0,.2)}
+.mgc-textarea{color:var(--mgc-text);font-size:14px}
+.mgc-textarea::placeholder{color:rgba(154,161,170,.8)}
+.mgc-send{height:31px;border-radius:15px;background:var(--mgc-yellow);color:#121418;font-weight:600}
+.mgc-send:hover:not(:disabled){background:#ffe45c}
+.mgc-stop{color:#ff7d7d}
+.mgc-count,.mgc-composerHint{color:rgba(154,161,170,.72)}
+.mgc-bannerSlot{max-width:1000px;padding:8px 32px 0}
+.mgc-banner{border:1px solid rgba(255,107,107,.22);background:rgba(255,107,107,.08);color:#ff8b8b;border-radius:10px}
+.mgc-bannerWarn{border-color:rgba(244,183,64,.2);background:rgba(244,183,64,.07);color:#f4b740}
+.mgc-menu{border-color:var(--mgc-lineStrong);border-radius:12px;background:#181d24;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.mgc-menuRow{color:var(--mgc-text);font-size:12px}
+.mgc-menuRow:hover,.mgc-menuRow:focus-visible{background:rgba(255,255,255,.07)}
+.mgc-menuRow small{color:var(--mgc-muted)}
+.mgc-menuHead{color:var(--mgc-muted)}
+.mgc-menuSep{background:var(--mgc-line)}
+.mgc-backdrop{background:rgba(0,0,0,.55)}
+.mgc-drawer{background:#11151a;border-left:1px solid var(--mgc-lineStrong);box-shadow:-24px 0 60px rgba(0,0,0,.4)}
+.mgc-drawerTitle{color:var(--mgc-text)}
+.mgc-tabs{border-bottom-color:var(--mgc-line)}
+.mgc-tab{color:var(--mgc-muted)}
+.mgc-tab:hover{color:var(--mgc-text)}
+.mgc-tab[aria-selected=true]{color:var(--mgc-yellow)}
+.mgc-tab[aria-selected=true]:after{background:var(--mgc-yellow)}
+.mgc-drawerBody{background:#11151a}
+.mgc-card,.mgc-section{border-color:var(--mgc-line);background:rgba(255,255,255,.028)}
+.mgc-cardTitle,.mgc-sectionTitle{color:var(--mgc-text)}
+.mgc-label{color:#b9c0c8}
+.mgc-hint{color:var(--mgc-muted)}
+.mgc-input,.mgc-select,.mgc-textarea2{border-color:var(--mgc-lineStrong);background:#0c0f13;color:var(--mgc-text)}
+.mgc-input:focus,.mgc-select:focus,.mgc-textarea2:focus{border-color:rgba(244,210,31,.62);box-shadow:0 0 0 3px rgba(244,210,31,.06)}
+.mgc-check{color:var(--mgc-text)}
+.mgc-check input{accent-color:var(--mgc-yellow)}
+.mgc-memberRow,.mgc-groupRow{border-color:var(--mgc-line);background:rgba(255,255,255,.025);color:var(--mgc-text)}
+.mgc-memberRow:hover,.mgc-groupRow:hover{background:rgba(255,255,255,.06)}
+.mgc-memberRow[data-active=true],.mgc-groupRow[data-active=true]{border-color:rgba(244,210,31,.5);background:rgba(244,210,31,.08)}
+.mgc-memberName,.mgc-groupNameSm{color:var(--mgc-text)}
+.mgc-memberOneLiner,.mgc-groupMeta{color:var(--mgc-muted)}
+.mgc-dangerZone{border-top-color:var(--mgc-line)}
+.mgc-pathText{color:rgba(154,161,170,.7)}
+.mgc-success{color:#62d39a}
+.mgc-warnText{color:#f4b740}
+.mgc-error{color:#ff7d7d}
+.mgc-onboarding,.mgc-settingsPage{background:radial-gradient(760px 520px at 80% -10%,rgba(103,217,242,.08),transparent 60%),var(--mgc-bg);color:var(--mgc-text)}
+.mgc-onboardingInner,.mgc-settingsInner{max-width:900px}
+.mgc-h1{color:var(--mgc-text);letter-spacing:.01em}
+.mgc-p{color:var(--mgc-muted)}
+.mgc-emptyState{background:var(--mgc-bg);color:var(--mgc-muted)}
+.mgc-emptyState h2{color:var(--mgc-text)}
+.mgc-loading{background:var(--mgc-bg);color:var(--mgc-muted)}
+.mgc-groupList{gap:8px}
+.mgc-groupRow{padding:10px 12px;border-radius:12px}
+.mgc-railHint{display:block}
+@media (max-width:960px){
+.mgc-rail{position:absolute;top:0;bottom:0;left:0;z-index:60;width:min(320px,86vw);transform:translateX(-104%);transition:transform .2s ease;box-shadow:24px 0 70px rgba(0,0,0,.5)}
+.mgc-page[data-rail=open] .mgc-rail{transform:translateX(0)}
+.mgc-railBackdrop{display:block;position:absolute;inset:0;z-index:55;background:rgba(0,0,0,.58);backdrop-filter:blur(2px)}
+.mgc-railToggle{display:inline-flex}
+.mgc-header{flex-direction:row;flex-wrap:wrap;gap:12px;padding:16px 16px 12px}
+[data-platform=darwin] .mgc-header{padding-top:calc(16px + var(--dsh-frame-top-clearance,0px))}
+.mgc-headActions{width:auto;justify-content:flex-end}
+.mgc-groupTitle{font-size:19px;line-height:26px}
+.mgc-thread{padding:18px 14px 30px}
 .mgc-bannerSlot{padding-left:14px;padding-right:14px}
+.mgc-composer{padding:10px 14px 14px}
+.mgc-body{max-width:84%}
+.mgc-header:before{left:16px;right:16px}
+}
+@media (max-width:560px){
+.mgc-groupTitle{font-size:18px}
+.mgc-live{display:none}
+.mgc-headActions .mgc-btn{padding:0 9px;font-size:11px}
+.mgc-body{max-width:88%}
+.mgc-text{padding:9px 12px;font-size:13px}
+.mgc-railHint{display:none}
 }
 `;
 
@@ -235,6 +419,14 @@ window.__ModuleLoader__.load({
       'header.export': '导出',
       'header.newGroup': '新建群聊',
       'header.switchGroup': '切换群聊',
+      'header.live': '群聊中',
+      'header.openRail': '打开群聊列表',
+      'rail.title': '群聊',
+      'rail.count': '{n} 个',
+      'rail.messages': '{n} 条',
+      'rail.noMessages': '还没有消息',
+      'rail.new': '新建群聊',
+      'rail.hint': '按最近活动排序',
       'header.generating': '{name}正在输入…',
       'header.stop': '停止',
       'header.defaultModel': '默认模型：{model}',
@@ -447,6 +639,14 @@ window.__ModuleLoader__.load({
       'header.export': 'Export',
       'header.newGroup': 'New group',
       'header.switchGroup': 'Switch group',
+      'header.live': 'Live',
+      'header.openRail': 'Open group list',
+      'rail.title': 'Chats',
+      'rail.count': '{n}',
+      'rail.messages': '{n} msgs',
+      'rail.noMessages': 'No messages yet',
+      'rail.new': 'New group',
+      'rail.hint': 'Recent activity first',
       'header.generating': '{name} is typing…',
       'header.stop': 'Stop',
       'header.defaultModel': 'Default model: {model}',
@@ -654,6 +854,13 @@ window.__ModuleLoader__.load({
     function avatarColor(members, memberId) {
       const index = Math.max(0, members.findIndex((member) => member.id === memberId));
       return AVATAR_COLORS[index % AVATAR_COLORS.length];
+    }
+
+    /** @param {string} name - group name. @returns {string} stable palette color. */
+    function groupColor(name) {
+      let hash = 0;
+      for (const char of String(name ?? '')) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+      return AVATAR_COLORS[hash % AVATAR_COLORS.length];
     }
 
     /** @param {string} name - display name. @returns {string} first glyph. */
@@ -1381,6 +1588,14 @@ window.__ModuleLoader__.load({
     function IconOpen({ size = 13 }) {
       return h(Svg, { size }, h('path', { d: 'M14 4h6v6' }), h('path', { d: 'M20 4l-9 9' }), h('path', { d: 'M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5' }));
     }
+    /** @param {{size?: number}} props - size. @returns {any} menu icon. */
+    function IconMenu({ size = 18 }) {
+      return h(Svg, { size }, h('path', { d: 'M4 7h16M4 12h16M4 17h16' }));
+    }
+    /** @param {{size?: number}} props - size. @returns {any} plus icon. */
+    function IconPlus({ size = 14 }) {
+      return h(Svg, { size }, h('path', { d: 'M12 5v14M5 12h14' }));
+    }
 
     /**
      * Render body text with resolved `@` references highlighted.
@@ -1510,8 +1725,9 @@ window.__ModuleLoader__.load({
       return h(
         'article',
         {
-          className: `mgc-msg${continuation ? ' mgc-msgCont' : ''}${message.folded ? ' mgc-foldMsg' : ''}`,
+          className: `mgc-msg${isOwner ? ' mgc-msgOwner' : ''}${continuation ? ' mgc-msgCont' : ''}${message.folded ? ' mgc-foldMsg' : ''}`,
           'data-message-id': message.id,
+          'data-role': isOwner ? 'owner' : 'member',
         },
         h(Avatar, {
           name,
@@ -1897,28 +2113,84 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Header: group switcher, token summary, and the management actions.
+     * Left rail: every group, with a last-message preview and a new-group action.
+     * @param {{state: object, t: object, onSelect: Function, onNew: Function, disabled: boolean}} props - rail inputs.
+     * @returns {any} element.
+     */
+    function GroupRail({ state, t, onSelect, onNew, disabled }) {
+      const groups = state.groups ?? [];
+      return h(
+        'aside',
+        { className: 'mgc-rail', id: 'mgc-rail', 'aria-label': t('rail.title') },
+        h(
+          'div',
+          { className: 'mgc-railHead' },
+          h('div', { className: 'mgc-railEyebrow' }, 'DSH / GROUP CHAT'),
+          h('div', { className: 'mgc-railTitleRow' },
+            h('h2', { className: 'mgc-railTitle' }, t('rail.title')),
+            h('span', { className: 'mgc-railCount' }, t('rail.count', { n: groups.length })),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'mgc-railList' },
+          groups.map((group) => {
+            const active = group.id === state.selectedId;
+            const preview = group.lastMessageText
+              ? `${group.lastMessageSpeaker ? `${group.lastMessageSpeaker}：` : ''}${group.lastMessageText}`
+              : group.brief?.trim() || t('rail.noMessages');
+            return h(
+              'button',
+              {
+                key: group.id,
+                type: 'button',
+                className: 'mgc-railRow',
+                'data-active': active ? 'true' : 'false',
+                'aria-current': active ? 'page' : undefined,
+                disabled: disabled && !active,
+                onClick: () => onSelect(group.id),
+              },
+              h('span', { className: 'mgc-railAvatar' }, h(Avatar, { name: group.name, color: groupColor(group.name) })),
+              h(
+                'span',
+                { className: 'mgc-railText' },
+                h(
+                  'span',
+                  { className: 'mgc-railTop' },
+                  h('span', { className: 'mgc-railName' }, group.name),
+                  group.lastMessageAt > 0 ? h('span', { className: 'mgc-railTime' }, fmtTime(group.lastMessageAt)) : null,
+                ),
+                h('span', { className: 'mgc-railPreview' }, preview),
+                h(
+                  'span',
+                  { className: 'mgc-railMeta' },
+                  t('header.members', { n: group.memberCount }),
+                  group.messageCount > 0 ? ` · ${t('rail.messages', { n: group.messageCount })}` : '',
+                ),
+              ),
+            );
+          }),
+        ),
+        h(
+          'div',
+          { className: 'mgc-railFoot' },
+          h(
+            'button',
+            { type: 'button', className: 'mgc-railNew', onClick: onNew, disabled },
+            h(IconPlus, { size: 14 }),
+            t('rail.new'),
+          ),
+          h('div', { className: 'mgc-railHint' }, t('rail.hint')),
+        ),
+      );
+    }
+
+    /**
+     * Header: active group, status summary, and management actions.
      * @param {object} props - header inputs.
      * @returns {any} element.
      */
-    function Header({ state, t, onOpen, onNewGroup, onStop }) {
-      const [menuOpen, setMenuOpen] = useState(false);
-      const wrapRef = useRef(null);
-      useEffect(() => {
-        if (!menuOpen) return;
-        const onDown = (event) => {
-          if (wrapRef.current !== null && !wrapRef.current.contains(event.target)) setMenuOpen(false);
-        };
-        const onKey = (event) => {
-          if (event.key === 'Escape') setMenuOpen(false);
-        };
-        document.addEventListener('pointerdown', onDown);
-        document.addEventListener('keydown', onKey);
-        return () => {
-          document.removeEventListener('pointerdown', onDown);
-          document.removeEventListener('keydown', onKey);
-        };
-      }, [menuOpen]);
+    function Header({ state, t, onOpen, onToggleRail, railOpen }) {
       const model = state.defaultModel;
       const modelText = model === null ? t('group.noDefaultModel') : `${model.provider} / ${model.model}`;
       const used = state.totals.inputTokens + state.totals.outputTokens;
@@ -1934,62 +2206,19 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'mgc-titleRow' },
             h(
-              'div',
-              { className: 'mgc-popWrap', ref: wrapRef },
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'mgc-groupBtn',
-                  onClick: () => setMenuOpen((open) => !open),
-                  title: t('header.switchGroup'),
-                  'aria-expanded': menuOpen,
-                },
-                h('span', { className: 'mgc-groupName' }, state.group.name),
-                h('span', { className: 'mgc-chevron' }, h(IconChevron, { size: 13 })),
-              ),
-              menuOpen
-                ? h(
-                    'div',
-                    { className: 'mgc-menu', role: 'menu' },
-                    h('div', { className: 'mgc-menuHead' }, t('header.switchGroup')),
-                    state.groups.map((group) =>
-                      h(
-                        'button',
-                        {
-                          key: group.id,
-                          type: 'button',
-                          className: 'mgc-menuRow',
-                          role: 'menuitem',
-                          disabled: state.busy || group.id === state.group.id,
-                          onClick: () => {
-                            setMenuOpen(false);
-                            if (group.id !== state.group.id) onOpen('switch', group.id);
-                          },
-                        },
-                        h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, group.name),
-                        h('small', null, t('header.members', { n: group.memberCount })),
-                      ),
-                    ),
-                    h('div', { className: 'mgc-menuSep' }),
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'mgc-menuRow',
-                        role: 'menuitem',
-                        disabled: state.busy,
-                        onClick: () => {
-                          setMenuOpen(false);
-                          onNewGroup();
-                        },
-                      },
-                      h('span', { style: { flex: 1 } }, t('header.newGroup')),
-                      h('span', { 'aria-hidden': true }, '+'),
-                    ),
-                  )
-                : null,
+              'button',
+              {
+                type: 'button',
+                className: 'mgc-railToggle',
+                onClick: onToggleRail,
+                'aria-expanded': railOpen,
+                'aria-controls': 'mgc-rail',
+                'aria-label': t('header.openRail'),
+              },
+              h(IconMenu, { size: 18 }),
             ),
+            h('h1', { className: 'mgc-groupTitle' }, state.group.name),
+            h('span', { className: 'mgc-live' }, h('i'), t('header.live')),
           ),
           h(
             'div',
@@ -2079,12 +2308,14 @@ window.__ModuleLoader__.load({
       const [drawer, setDrawer] = useState(null);
       const [creating, setCreating] = useState(false);
       const [showFolded, setShowFolded] = useState(false);
+      const [railOpen, setRailOpen] = useState(false);
       useEffect(() => {
         store.load();
       }, [store]);
       useEffect(() => {
         setShowFolded(false);
         setDrawer(null);
+        setRailOpen(false);
       }, [state.group?.id]);
       useEffect(() => {
         if (state.activeTurn === null || state.busy) return undefined;
@@ -2127,49 +2358,66 @@ window.__ModuleLoader__.load({
       const uiState = uiBusy === state.busy ? state : { ...state, busy: uiBusy };
       return h(
         'section',
-        { className: 'mgc-page', 'aria-label': t('panel') },
-        h(Header, {
+        { className: 'mgc-page', 'aria-label': t('panel'), 'data-rail': railOpen ? 'open' : 'closed' },
+        h(GroupRail, {
           state,
           t,
-          onOpen: (kind, value) => {
-            if (kind === 'switch') store.selectGroup(value);
-            else setDrawer(kind);
+          disabled: uiBusy,
+          onSelect: (groupId) => {
+            setRailOpen(false);
+            if (groupId !== state.group.id) store.selectGroup(groupId);
           },
-          onNewGroup: () => setCreating(true),
-          onStop: () => store.stop(),
+          onNew: () => {
+            setRailOpen(false);
+            setCreating(true);
+          },
         }),
-        h(Thread, {
-          state: uiState,
-          t,
-          showFolded,
-          onToggleFolded: () => setShowFolded((open) => !open),
-          onPin: (messageId, pinned) => store.pin(messageId, pinned),
-          onRewrite: (messageId) => store.rewrite(messageId),
-        }),
-        state.error !== null || state.actionError !== null || state.actionNotice !== null
-          ? h('div', { className: 'mgc-bannerSlot' }, h(Banners, { state, t, store }))
+        railOpen
+          ? h('div', { className: 'mgc-railBackdrop', onClick: () => setRailOpen(false), 'aria-hidden': true })
           : null,
-        h(Composer, {
-          state: uiState,
-          t,
-          onSend: (text) => store.send(text),
-          onStop: () => store.stop(),
-        }),
-        drawer === null
-          ? null
-          : h(
-              React.Fragment,
-              null,
-              h('div', { className: 'mgc-backdrop', onClick: () => setDrawer(null) }),
-              h(ManageDrawer, {
-                state,
-                t,
-                store,
-                tab: drawer,
-                onTab: setDrawer,
-                onClose: () => setDrawer(null),
-              }),
-            ),
+        h(
+          'div',
+          { className: 'mgc-main' },
+          h(Header, {
+            state,
+            t,
+            onOpen: (kind) => setDrawer(kind),
+            onToggleRail: () => setRailOpen((open) => !open),
+            railOpen,
+          }),
+          h(Thread, {
+            state: uiState,
+            t,
+            showFolded,
+            onToggleFolded: () => setShowFolded((open) => !open),
+            onPin: (messageId, pinned) => store.pin(messageId, pinned),
+            onRewrite: (messageId) => store.rewrite(messageId),
+          }),
+          state.error !== null || state.actionError !== null || state.actionNotice !== null
+            ? h('div', { className: 'mgc-bannerSlot' }, h(Banners, { state, t, store }))
+            : null,
+          h(Composer, {
+            state: uiState,
+            t,
+            onSend: (text) => store.send(text),
+            onStop: () => store.stop(),
+          }),
+          drawer === null
+            ? null
+            : h(
+                React.Fragment,
+                null,
+                h('div', { className: 'mgc-backdrop', onClick: () => setDrawer(null) }),
+                h(ManageDrawer, {
+                  state,
+                  t,
+                  store,
+                  tab: drawer,
+                  onTab: setDrawer,
+                  onClose: () => setDrawer(null),
+                }),
+              ),
+        ),
       );
     }
 

@@ -203,6 +203,8 @@ export class GroupStore {
       messageCount: live.state.active.length,
       totals: live.state.totals,
       lastMessageAt: last?.ts ?? 0,
+      lastMessageText: previewText(last?.text),
+      lastMessageSpeaker: last === undefined ? '' : speakerName(last, live.members, ownerDisplayName(live.group)),
       updatedAt: live.group.updatedAt ?? 0,
     };
   }
@@ -730,6 +732,18 @@ function mapRelationNames(relations, byName, selfName) {
     if (id !== undefined) result[id] = text;
   }
   return result;
+}
+
+/**
+ * One-line preview for the group rail.
+ * @param {unknown} text - message text.
+ * @returns {string} compact preview.
+ */
+function previewText(text) {
+  if (typeof text !== 'string') return '';
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const chars = [...clean];
+  return chars.length > 72 ? `${chars.slice(0, 72).join('')}…` : clean;
 }
 
 /**

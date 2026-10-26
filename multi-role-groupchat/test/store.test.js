@@ -72,6 +72,9 @@ test('create, append, reload, supersede, pin, notice, export', async (t) => {
   assert.equal(view.messages[1].memberName, '林晚');
   assert.equal(view.messages[1].usage.cacheReadTokens, 1500);
   assert.equal(view.totals.inputTokens, 1820);
+  const summaries = await store.listGroups();
+  assert.equal(summaries[0].lastMessageSpeaker, '林晚');
+  assert.equal(summaries[0].lastMessageText, '后门我从里面锁的……你别动。');
 
   // A fresh store replays the same JSONL log.
   const reloaded = new GroupStore(root);
