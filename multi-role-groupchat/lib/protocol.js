@@ -649,6 +649,20 @@ export function normalizeBudget(budget) {
 }
 
 /**
+ * Normalize a model override.
+ * @param {unknown} model - candidate.
+ * @returns {{provider: string, model: string}|null} override, or null for inherit.
+ */
+export function normalizeModel(model) {
+  if (model === null || model === undefined) return null;
+  if (typeof model !== 'object') return null;
+  const provider = typeof model.provider === 'string' ? model.provider.trim() : '';
+  const id = typeof model.model === 'string' ? model.model.trim() : '';
+  if (provider.length === 0 || id.length === 0) return null;
+  return { provider, model: id };
+}
+
+/**
  * Trim a string, falling back to placeholder text when empty.
  * @param {unknown} value - candidate.
  * @param {string} fallback - text for an empty value.

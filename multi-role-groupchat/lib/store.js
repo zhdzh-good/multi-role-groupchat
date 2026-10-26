@@ -16,13 +16,12 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  DEFAULT_BUDGET,
   DEFAULT_OWNER_NAME,
-  DEFAULT_POLICY,
   SETTING_LIMITS,
   applyEvent,
   createState,
   normalizeBudget,
+  normalizeModel,
   normalizePolicy,
   normalizeUsage,
   ownerDisplayName,
@@ -210,7 +209,7 @@ export class GroupStore {
 
   /**
    * Create a group from the onboarding form.
-   * @param {{name: string, brief?: string, members: Array<object>}} input - creation data.
+   * @param {{name: string, brief?: string, members: Array<object>, owner?: object, policy?: object, budget?: object, model?: object|null}} input - creation data.
    * @returns {Promise<object>} created live state.
    */
   async createGroup(input) {
@@ -252,9 +251,9 @@ export class GroupStore {
       brief,
       owner,
       memberIds: members.map((member) => member.card.id),
-      policy: { ...DEFAULT_POLICY },
-      model: null,
-      budget: { ...DEFAULT_BUDGET },
+      policy: normalizePolicy(input.policy),
+      model: normalizeModel(input.model),
+      budget: normalizeBudget(input.budget),
       createdAt: now,
       updatedAt: now,
     };
@@ -271,6 +270,69 @@ export class GroupStore {
     await writeJson(path.join(dir, 'group.json'), group);
     this.invalidate(gid);
     return this.load(gid);
+  }
+
+  /**
+   * Create a new group from a normalized portable import descriptor.
+   *
+   * Relations arrive keyed by member display name; this method creates the
+   * group first (which assigns fresh ids), then maps relations onto those ids.
+   * The group is removed if a later write fails, so a rejected import never
+   * leaves a half-created group behind.
+   *
+   * @param {object} input - normalized import descriptor from `portable.js`.
+   * @returns {Promise<object>} imported live state.
+   */
+  async importGroup(input) {
+    const memberDrafts = input.members.map((member) => ({
+      name: member.name,
+      oneLiner: member.oneLiner,
+      core: member.core,
+    }));
+    const live = await this.createGroup({
+      name: input.name,
+      brief: input.brief,
+      owner: {
+        name: input.owner.name,
+        oneLiner: input.owner.oneLiner,
+        setting: input.owner.setting,
+        avatar: input.owner.avatar,
+        relations: {},
+      },
+      members: memberDrafts,
+      policy: input.policy,
+      budget: input.budget,
+      model: input.model,
+    });
+    try {
+      const byName = new Map(live.members.map((member) => [member.name, member.id]));
+      for (const member of input.members) {
+        await this.saveMember(live.gid, {
+          memberId: byName.get(member.name),
+          name: member.name,
+          oneLiner: member.oneLiner,
+          avatar: member.avatar,
+          relations: mapRelationNames(member.relations, byName, member.name),
+          core: member.core,
+          extended: member.extended,
+          extendedEnabled: member.extendedEnabled,
+          model: member.model,
+        });
+      }
+      await this.updateGroup(live.gid, {
+        owner: {
+          name: input.owner.name,
+          oneLiner: input.owner.oneLiner,
+          setting: input.owner.setting,
+          avatar: input.owner.avatar,
+          relations: mapRelationNames(input.owner.relations, byName, null),
+        },
+      });
+      return this.load(live.gid);
+    } catch (error) {
+      await this.deleteGroup(live.gid).catch(() => {});
+      throw error;
+    }
   }
 
   /**
@@ -654,6 +716,23 @@ export function buildStateView(live, turn) {
 }
 
 /**
+ * Map name-keyed relations onto ids for one group.
+ * @param {Record<string,string>|null|undefined} relations - name-to-text map.
+ * @param {Map<string,string>} byName - member name to id.
+ * @param {string|null} selfName - member name to omit.
+ * @returns {Record<string,string>} id-to-text map.
+ */
+function mapRelationNames(relations, byName, selfName) {
+  const result = {};
+  for (const [name, text] of Object.entries(relations ?? {})) {
+    if (name === selfName) continue;
+    const id = byName.get(name);
+    if (id !== undefined) result[id] = text;
+  }
+  return result;
+}
+
+/**
  * Read and normalize `group.json`.
  * @param {object} raw - decoded JSON.
  * @param {string} gid - expected id.
@@ -721,19 +800,6 @@ export function normalizeOwner(raw, members = null) {
   return { name, oneLiner, setting, avatar, relations };
 }
 
-/**
- * Normalize a model override.
- * @param {unknown} model - candidate.
- * @returns {{provider: string, model: string}|null} override, or null for inherit.
- */
-export function normalizeModel(model) {
-  if (model === null || model === undefined) return null;
-  if (typeof model !== 'object') return null;
-  const provider = typeof model.provider === 'string' ? model.provider.trim() : '';
-  const id = typeof model.model === 'string' ? model.model.trim() : '';
-  if (provider.length === 0 || id.length === 0) return null;
-  return { provider, model: id };
-}
 
 /**
  * Read one member directory.

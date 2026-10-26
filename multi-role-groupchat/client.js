@@ -363,6 +363,35 @@ window.__ModuleLoader__.load({
       'export.path': '已写入：{path}',
       'export.filename': '群聊记录.md',
       'export.failed': '导出失败',
+      'export.markdownTitle': 'Markdown 聊天记录',
+      'portable.title': '角色与群配置',
+      'portable.hint': '导出 JSON 备份，或从备份导入为一个新群；不包含消息记录、钉住和导出历史。',
+      'portable.includeAvatars': '包含头像',
+      'portable.avatarNote': '头像会让文件变大；关闭后仍保留名字、设定和关系。',
+      'portable.exportGroup': '导出群配置',
+      'portable.exporting': '导出中…',
+      'portable.importGroup': '导入群配置',
+      'portable.reading': '读取中…',
+      'portable.onlyJson': '当前支持 JSON；YAML 将在后续版本加入。',
+      'portable.importBusy': '正在生成回应，先停止当前回应再导入新群。',
+      'portable.groupExported': '群配置已下载。',
+      'portable.previewTitle': '导入预览',
+      'portable.previewOwner': '我的角色：{name}',
+      'portable.previewMembers': '成员：{count} 人',
+      'portable.previewPolicy': '接话：{targets} 个目标 · 其他人 {chance}%',
+      'portable.previewAvatars': '头像：{count} 个',
+      'portable.previewBytes': '文件大小：{size}',
+      'portable.warnings': '提示：',
+      'portable.noWarnings': '校验通过。',
+      'portable.imported': '已导入为新群：{name}',
+      'portable.importAsNew': '导入为新群',
+      'portable.importing': '导入中…',
+      'portable.characterExport': '导出角色卡',
+      'portable.characterImport': '导入角色卡',
+      'portable.characterHint': '角色卡包含公开档案、核心/扩展设定、头像与关系；导出的是已保存版本，关系按名字匹配当前群成员。',
+      'portable.characterExported': '角色卡已下载。',
+      'portable.characterLoaded': '已载入角色卡，请检查后保存。',
+      'portable.tooLarge': '文件超过 4 MB，无法导入。',
       'settings.title': '群聊',
       'settings.description': '管理群、成员设定、模型与预算。聊天在左侧「群聊」面板里。',
       'settings.open': '打开群聊面板',
@@ -545,6 +574,35 @@ window.__ModuleLoader__.load({
       'export.path': 'Written to: {path}',
       'export.filename': 'group-chat.md',
       'export.failed': 'Export failed',
+      'export.markdownTitle': 'Markdown transcript',
+      'portable.title': 'Character and group files',
+      'portable.hint': 'Export a JSON backup, or import one as a new group. Messages, pins, and export history are not included.',
+      'portable.includeAvatars': 'Include avatars',
+      'portable.avatarNote': 'Avatars make the file larger; names, settings, and relations remain without them.',
+      'portable.exportGroup': 'Export group config',
+      'portable.exporting': 'Exporting…',
+      'portable.importGroup': 'Import group config',
+      'portable.reading': 'Reading…',
+      'portable.onlyJson': 'JSON is supported now; YAML may come later.',
+      'portable.importBusy': 'A reply is generating. Stop it before importing a new group.',
+      'portable.groupExported': 'Group config downloaded.',
+      'portable.previewTitle': 'Import preview',
+      'portable.previewOwner': 'My character: {name}',
+      'portable.previewMembers': 'Members: {count}',
+      'portable.previewPolicy': 'Routing: {targets} targets · others {chance}%',
+      'portable.previewAvatars': 'Avatars: {count}',
+      'portable.previewBytes': 'File size: {size}',
+      'portable.warnings': 'Notes:',
+      'portable.noWarnings': 'Validation passed.',
+      'portable.imported': 'Imported as a new group: {name}',
+      'portable.importAsNew': 'Import as new group',
+      'portable.importing': 'Importing…',
+      'portable.characterExport': 'Export character card',
+      'portable.characterImport': 'Import character card',
+      'portable.characterHint': 'A character card contains the public profile, core/extended settings, avatar, and relations; exports use the saved version, and relations match current members by name.',
+      'portable.characterExported': 'Character card downloaded.',
+      'portable.characterLoaded': 'Character card loaded; review it before saving.',
+      'portable.tooLarge': 'The file is over 4 MB and cannot be imported.',
       'settings.title': 'Group chat',
       'settings.description': 'Manage groups, member settings, models, and budgets. Chat lives in the Group chat panel.',
       'settings.open': 'Open the Group chat panel',
@@ -615,6 +673,40 @@ window.__ModuleLoader__.load({
         /* fall through */
       }
       return `HTTP ${response.status}`;
+    }
+
+    /** Largest portable file the browser will read before asking the Host. */
+    const PORTABLE_FILE_LIMIT = 4 * 1024 * 1024;
+
+    /**
+     * Format a byte count for previews.
+     * @param {number} bytes - size.
+     * @returns {string} compact size.
+     */
+    function fmtBytes(bytes) {
+      const value = Number(bytes) || 0;
+      if (value < 1024) return `${value} B`;
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+      return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    /**
+     * Trigger a text download without touching server files.
+     * @param {string} filename - download name.
+     * @param {string} text - file content.
+     * @param {string} mime - MIME type.
+     * @returns {void}
+     */
+    function downloadText(filename, text, mime = 'application/json;charset=utf-8') {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     /**
@@ -1074,6 +1166,79 @@ window.__ModuleLoader__.load({
         return response.json();
       }
 
+      /**
+       * Export a group backup or one character card.
+       * @param {{scope?: 'group'|'owner'|'member', memberId?: string, includeAvatars?: boolean}} options - export options.
+       * @returns {Promise<object>} portable response.
+       */
+      async function exportPortable(options = {}) {
+        if (state.group === null) throw new Error('没有选中的群。');
+        const response = await fetch('api/groupchat.portable-export', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ groupId: state.group.id, ...options }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        return response.json();
+      }
+
+      /** @param {string} text - JSON file text. @returns {Promise<object>} group import preview. */
+      async function previewGroupImport(text) {
+        const response = await fetch('api/groupchat.portable-group-preview', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        return response.json();
+      }
+
+      /** @param {string} text - JSON file text. @returns {Promise<object>} imported group state. */
+      async function importGroupBundle(text) {
+        if (state.busy || state.activeTurn !== null) {
+          throw new Error('正在生成回应，请先停止再导入新群。');
+        }
+        const response = await fetch('api/groupchat.portable-group-import', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const data = await response.json();
+        writeSelected(data.groupId);
+        emit({ loaded: true, loading: false, error: null });
+        applySelected(data.state);
+        await load(data.groupId);
+        return data;
+      }
+
+      /**
+       * Parse a character card and map its relations onto the current group.
+       * @param {string} text - JSON file text.
+       * @param {'owner'|'member'} target - target form.
+       * @param {string|null} [memberId] - member being edited, when any.
+       * @returns {Promise<object>} normalized form fields.
+       */
+      async function previewCharacterImport(text, target, memberId = null) {
+        if (state.group === null) throw new Error('没有选中的群。');
+        const response = await fetch('api/groupchat.portable-character-preview', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            groupId: state.group.id,
+            target,
+            ...(memberId === null ? {} : { memberId }),
+            text,
+          }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        return response.json();
+      }
+
       /** @returns {Promise<void>} loads the provider/model catalog once. */
       async function loadModels() {
         if (state.models !== null) return;
@@ -1118,6 +1283,10 @@ window.__ModuleLoader__.load({
         deleteGroup,
         createGroup,
         exportMarkdown,
+        exportPortable,
+        previewGroupImport,
+        importGroupBundle,
+        previewCharacterImport,
         loadModels,
         setActionError,
         clearActionError,
@@ -2433,12 +2602,64 @@ window.__ModuleLoader__.load({
       const [model, setModel] = useState(member?.model?.model ?? state.defaultModel?.model ?? '');
       const [saving, setSaving] = useState(false);
       const [error, setError] = useState(null);
+      const [cardBusy, setCardBusy] = useState(false);
+      const [cardMessage, setCardMessage] = useState(null);
+      const cardInput = useRef(null);
       const uid = useRef(`mgc-member-${Math.random().toString(36).slice(2, 7)}`);
       useEffect(() => {
         store.loadModels();
       }, [store]);
       const coreLength = [...core].length;
       const extendedLength = [...extended].length;
+      const exportCard = async () => {
+        if (member === null) return;
+        setCardBusy(true);
+        setCardMessage(null);
+        try {
+          const result = await store.exportPortable({ scope: 'member', memberId: member.id, includeAvatars: true });
+          downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
+          setCardMessage({ level: 'success', text: t('portable.characterExported') });
+        } catch (reason) {
+          setCardMessage({ level: 'error', text: reason instanceof Error ? reason.message : String(reason) });
+        } finally {
+          setCardBusy(false);
+        }
+      };
+      const importCard = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file === undefined) return;
+        if (file.size > PORTABLE_FILE_LIMIT) {
+          setCardMessage({ level: 'error', text: t('portable.tooLarge') });
+          return;
+        }
+        setCardBusy(true);
+        setCardMessage(null);
+        setError(null);
+        try {
+          const result = await store.previewCharacterImport(await file.text(), 'member', member?.id ?? null);
+          const fields = result.fields;
+          setName(fields.name ?? '');
+          setAvatar(fields.avatar ?? '');
+          setOneLiner(fields.oneLiner ?? '');
+          setRelations({ ...(fields.relations ?? {}) });
+          setCore(fields.core ?? '');
+          setExtended(fields.extended ?? '');
+          setExtendedEnabled(fields.extendedEnabled === true);
+          setInheritModel(fields.model === null || fields.model === undefined);
+          setProvider(fields.model?.provider ?? state.defaultModel?.provider ?? '');
+          setModel(fields.model?.model ?? state.defaultModel?.model ?? '');
+          setCardMessage({
+            level: 'success',
+            text: t('portable.characterLoaded'),
+            warnings: result.warnings ?? [],
+          });
+        } catch (reason) {
+          setCardMessage({ level: 'error', text: reason instanceof Error ? reason.message : String(reason) });
+        } finally {
+          setCardBusy(false);
+        }
+      };
       const save = async () => {
         if (name.trim().length === 0) {
           setError(t('members.name'));
@@ -2472,6 +2693,41 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         null,
+        h(
+          'div',
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '8px' } },
+          member === null
+            ? null
+            : h(
+                'button',
+                { type: 'button', className: 'mgc-btn', onClick: exportCard, disabled: cardBusy },
+                h(IconDownload, { size: 12 }),
+                t('portable.characterExport'),
+              ),
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn', onClick: () => cardInput.current?.click(), disabled: cardBusy },
+            cardBusy ? t('portable.reading') : t('portable.characterImport'),
+          ),
+        ),
+        h('input', {
+          ref: cardInput,
+          type: 'file',
+          accept: '.json,application/json',
+          style: { display: 'none' },
+          onChange: importCard,
+        }),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.characterHint')),
+        cardMessage === null
+          ? null
+          : h(
+              'div',
+              { className: cardMessage.level === 'error' ? 'mgc-error' : 'mgc-success' },
+              cardMessage.text,
+              cardMessage.warnings?.length > 0
+                ? h('div', { className: 'mgc-warnText' }, `${t('portable.warnings')} ${cardMessage.warnings.join(' ')}`)
+                : null,
+            ),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2627,7 +2883,54 @@ window.__ModuleLoader__.load({
       const [saving, setSaving] = useState(false);
       const [error, setError] = useState(null);
       const [saved, setSaved] = useState(false);
+      const [cardBusy, setCardBusy] = useState(false);
+      const [cardMessage, setCardMessage] = useState(null);
+      const cardInput = useRef(null);
       const settingLength = [...setting].length;
+      const exportCard = async () => {
+        setCardBusy(true);
+        setCardMessage(null);
+        try {
+          const result = await store.exportPortable({ scope: 'owner', includeAvatars: true });
+          downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
+          setCardMessage({ level: 'success', text: t('portable.characterExported') });
+        } catch (reason) {
+          setCardMessage({ level: 'error', text: reason instanceof Error ? reason.message : String(reason) });
+        } finally {
+          setCardBusy(false);
+        }
+      };
+      const importCard = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file === undefined) return;
+        if (file.size > PORTABLE_FILE_LIMIT) {
+          setCardMessage({ level: 'error', text: t('portable.tooLarge') });
+          return;
+        }
+        setCardBusy(true);
+        setCardMessage(null);
+        setError(null);
+        setSaved(false);
+        try {
+          const result = await store.previewCharacterImport(await file.text(), 'owner');
+          const fields = result.fields;
+          setName(fields.name ?? '用户');
+          setAvatar(fields.avatar ?? '');
+          setOneLiner(fields.oneLiner ?? '');
+          setSetting(fields.setting ?? '');
+          setRelations({ ...(fields.relations ?? {}) });
+          setCardMessage({
+            level: 'success',
+            text: t('portable.characterLoaded'),
+            warnings: result.warnings ?? [],
+          });
+        } catch (reason) {
+          setCardMessage({ level: 'error', text: reason instanceof Error ? reason.message : String(reason) });
+        } finally {
+          setCardBusy(false);
+        }
+      };
       const save = async () => {
         if (name.trim().length === 0) {
           setError(t('owner.nameRequired'));
@@ -2655,6 +2958,39 @@ window.__ModuleLoader__.load({
         'div',
         null,
         h('p', { className: 'mgc-hint', style: { margin: '0 0 14px' } }, t('owner.hint')),
+        h(
+          'div',
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '8px' } },
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn', onClick: exportCard, disabled: cardBusy },
+            h(IconDownload, { size: 12 }),
+            t('portable.characterExport'),
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn', onClick: () => cardInput.current?.click(), disabled: cardBusy },
+            cardBusy ? t('portable.reading') : t('portable.characterImport'),
+          ),
+        ),
+        h('input', {
+          ref: cardInput,
+          type: 'file',
+          accept: '.json,application/json',
+          style: { display: 'none' },
+          onChange: importCard,
+        }),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.characterHint')),
+        cardMessage === null
+          ? null
+          : h(
+              'div',
+              { className: cardMessage.level === 'error' ? 'mgc-error' : 'mgc-success' },
+              cardMessage.text,
+              cardMessage.warnings?.length > 0
+                ? h('div', { className: 'mgc-warnText' }, `${t('portable.warnings')} ${cardMessage.warnings.join(' ')}`)
+                : null,
+            ),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2831,7 +3167,179 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Markdown export panel.
+     * Group backup (portable JSON) export/import card.
+     * @param {{state: object, t: object, store: object}} props - panel inputs.
+     * @returns {any} element.
+     */
+    function PortableGroupPanel({ state, t, store }) {
+      const [includeAvatars, setIncludeAvatars] = useState(true);
+      const [busy, setBusy] = useState(null);
+      const [error, setError] = useState(null);
+      const [notice, setNotice] = useState(null);
+      const [preview, setPreview] = useState(null);
+      const [text, setText] = useState('');
+      const input = useRef(null);
+      const turnBusy = state.busy || state.activeTurn !== null;
+
+      const exportGroup = async () => {
+        setBusy('export');
+        setError(null);
+        setNotice(null);
+        try {
+          const result = await store.exportPortable({ scope: 'group', includeAvatars });
+          downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
+          setNotice(t('portable.groupExported'));
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(null);
+        }
+      };
+
+      const choose = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file === undefined) return;
+        if (file.size > PORTABLE_FILE_LIMIT) {
+          setError(t('portable.tooLarge'));
+          return;
+        }
+        setBusy('read');
+        setError(null);
+        setNotice(null);
+        setPreview(null);
+        try {
+          const content = await file.text();
+          const result = await store.previewGroupImport(content);
+          setText(content);
+          setPreview(result);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(null);
+        }
+      };
+
+      const importGroup = async () => {
+        if (text.length === 0) return;
+        setBusy('import');
+        setError(null);
+        setNotice(null);
+        try {
+          const result = await store.importGroupBundle(text);
+          setPreview(null);
+          setText('');
+          setNotice(t('portable.imported', { name: result.state.group.name }));
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(null);
+        }
+      };
+
+      const summary = preview?.preview ?? null;
+      const warnings = preview?.warnings ?? [];
+      return h(
+        'div',
+        { className: 'mgc-card', style: { marginBottom: '18px' } },
+        h('h3', { className: 'mgc-cardTitle' }, t('portable.title')),
+        h('p', { className: 'mgc-hint', style: { margin: '4px 0 12px' } }, t('portable.hint')),
+        h(
+          'label',
+          { className: 'mgc-check', style: { marginBottom: '8px' } },
+          h('input', {
+            type: 'checkbox',
+            checked: includeAvatars,
+            onChange: (event) => setIncludeAvatars(event.target.checked),
+          }),
+          t('portable.includeAvatars'),
+        ),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '12px' } }, t('portable.avatarNote')),
+        h(
+          'div',
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '10px' } },
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: exportGroup, disabled: busy !== null },
+            h(IconDownload, { size: 12 }),
+            busy === 'export' ? t('portable.exporting') : t('portable.exportGroup'),
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn', onClick: () => input.current?.click(), disabled: busy !== null || turnBusy },
+            busy === 'read' ? t('portable.reading') : t('portable.importGroup'),
+          ),
+        ),
+        h('input', {
+          ref: input,
+          type: 'file',
+          accept: '.json,application/json',
+          style: { display: 'none' },
+          onChange: choose,
+        }),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.onlyJson')),
+        turnBusy ? h('div', { className: 'mgc-warnText', style: { marginBottom: '10px' } }, t('portable.importBusy')) : null,
+        error !== null ? h('p', { className: 'mgc-error' }, error) : null,
+        notice !== null ? h('p', { className: 'mgc-success' }, notice) : null,
+        summary === null
+          ? null
+          : h(
+              'div',
+              { className: 'mgc-formSection' },
+              h('div', { className: 'mgc-label' }, t('portable.previewTitle')),
+              h('div', { className: 'mgc-cardTitle', style: { marginBottom: '6px' } }, summary.groupName),
+              summary.brief.length > 0 ? h('p', { className: 'mgc-hint', style: { margin: '0 0 6px' } }, summary.brief) : null,
+              h('div', { className: 'mgc-hint' }, t('portable.previewOwner', { name: summary.ownerName })),
+              h('div', { className: 'mgc-hint' }, t('portable.previewMembers', { count: summary.memberCount })),
+              h('div', { className: 'mgc-hint' }, summary.members.map((member) => member.name).join('、')),
+              h(
+                'div',
+                { className: 'mgc-hint' },
+                t('portable.previewPolicy', {
+                  targets: summary.policy.maxMentionReplies,
+                  chance: summary.policy.bystanderChance,
+                }),
+              ),
+              h(
+                'div',
+                { className: 'mgc-hint' },
+                `${t('portable.previewAvatars', { count: summary.avatarCount })} · ${t('portable.previewBytes', { size: fmtBytes(summary.bytes) })}`,
+              ),
+              warnings.length === 0
+                ? h('div', { className: 'mgc-hint' }, t('portable.noWarnings'))
+                : h(
+                    'div',
+                    { className: 'mgc-warnText' },
+                    `${t('portable.warnings')} ${warnings.join(' ')}`,
+                  ),
+              h(
+                'div',
+                { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginTop: '10px' } },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mgc-btn',
+                    onClick: () => {
+                      setPreview(null);
+                      setText('');
+                    },
+                    disabled: busy !== null,
+                  },
+                  t('common.cancel'),
+                ),
+                h(
+                  'button',
+                  { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: importGroup, disabled: busy !== null || turnBusy },
+                  busy === 'import' ? t('portable.importing') : t('portable.importAsNew'),
+                ),
+              ),
+            ),
+      );
+    }
+
+    /**
+     * Markdown export panel plus the portable group backup card.
      * @param {{state: object, t: object, store: object}} props - export inputs.
      * @returns {any} element.
      */
@@ -2841,6 +3349,11 @@ window.__ModuleLoader__.load({
       const [result, setResult] = useState(null);
       const [error, setError] = useState(null);
       const [copied, setCopied] = useState(false);
+      useEffect(() => {
+        setResult(null);
+        setError(null);
+        setCopied(false);
+      }, [state.group?.id]);
       const run = async () => {
         setLoading(true);
         setError(null);
@@ -2864,19 +3377,17 @@ window.__ModuleLoader__.load({
       };
       const download = () => {
         if (result === null) return;
-        const blob = new Blob([result.markdown], { type: 'text/markdown;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `${(state.group?.name ?? 'group').replace(/[\\/:*?"<>|]/g, '_')}.md`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        downloadText(
+          `${(state.group?.name ?? 'group').replace(/[\\/:*?"<>|]/g, '_')}.md`,
+          result.markdown,
+          'text/markdown;charset=utf-8',
+        );
       };
       return h(
         'div',
         null,
+        h(PortableGroupPanel, { state, t, store }),
+        h('div', { className: 'mgc-label', style: { margin: '4px 0 8px' } }, t('export.markdownTitle')),
         h(
           'label',
           { className: 'mgc-check', style: { marginBottom: '12px' } },

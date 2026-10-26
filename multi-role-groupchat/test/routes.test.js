@@ -110,7 +110,7 @@ async function fixture(t, options) {
 
 test('routes expose state, creation, sending, pinning, rewriting, and export', async (t) => {
   const { routes } = await fixture(t, { texts: ['你好。', '我也在。', '那好吧。'] });
-  assert.equal(routes.size, 11);
+  assert.equal(routes.size, 15);
 
   const created = await call(routes, '/api/groupchat.group-create', {
     body: {
@@ -227,6 +227,101 @@ test('smart routing selects a model-chosen target and records route usage', asyn
   assert.equal(finalState.state.totals.inputTokens, 13);
   assert.equal(finalState.state.totals.outputTokens, 5);
   assert.deepEqual(finalState.state.lastRoute.targets, [created.json.state.members[0].id]);
+});
+
+test('portable routes export, preview, and import a group without ids', async (t) => {
+  const { routes } = await fixture(t);
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: {
+      name: '导出测试群',
+      brief: '原始群。',
+      members: [
+        { name: '甲', oneLiner: '甲的一句话', core: '甲的核心。' },
+        { name: '乙', oneLiner: '乙的一句话', core: '乙的核心。' },
+      ],
+    },
+  });
+  const groupId = created.json.groupId;
+  const [first, second] = created.json.state.members;
+  await call(routes, '/api/groupchat.member-save', {
+    body: {
+      groupId,
+      memberId: first.id,
+      name: first.name,
+      oneLiner: first.public.oneLiner,
+      core: first.core,
+      extended: '扩展背景。',
+      extendedEnabled: true,
+      relations: { [second.id]: '旧识' },
+    },
+  });
+  await call(routes, '/api/groupchat.group-update', {
+    body: {
+      groupId,
+      policy: { bystanderChance: 45, maxMentionReplies: 2 },
+      owner: { name: '阿明', oneLiner: '常客', setting: '设定。', relations: { [first.id]: '熟客' } },
+    },
+  });
+
+  const exported = await call(routes, '/api/groupchat.portable-export', {
+    body: { groupId, scope: 'group', includeAvatars: false },
+  });
+  assert.equal(exported.status, 200);
+  assert.equal(exported.json.kind, 'group');
+  assert.match(exported.json.filename, /^导出测试群.*\.groupchat\.json$/);
+  assert.equal(exported.json.data.group.owner.relations[first.name], '熟客');
+  assert.equal(exported.json.data.members[0].relations[second.name], '旧识');
+  assert.equal(JSON.stringify(exported.json.data).includes(first.id), false);
+
+  exported.json.data.group.name = '导入后的群';
+  const text = JSON.stringify(exported.json.data);
+  const preview = await call(routes, '/api/groupchat.portable-group-preview', { body: { text } });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.json.preview.groupName, '导入后的群');
+  assert.equal(preview.json.preview.memberCount, 2);
+  assert.equal(preview.json.preview.policy.bystanderChance, 45);
+
+  const imported = await call(routes, '/api/groupchat.portable-group-import', { body: { text } });
+  assert.equal(imported.status, 200);
+  assert.notEqual(imported.json.groupId, groupId);
+  assert.equal(imported.json.state.group.name, '导入后的群');
+  assert.equal(imported.json.state.members.length, 2);
+  assert.equal(imported.json.state.policy.bystanderChance, 45);
+  const importedFirst = imported.json.state.members.find((member) => member.name === '甲');
+  const importedSecond = imported.json.state.members.find((member) => member.name === '乙');
+  assert.equal(importedFirst.public.relations[importedSecond.id], '旧识');
+  assert.equal(imported.json.state.owner.relations[importedFirst.id], '熟客');
+
+  const memberCard = await call(routes, '/api/groupchat.portable-export', {
+    body: { groupId, scope: 'member', memberId: first.id, includeAvatars: true },
+  });
+  assert.equal(memberCard.status, 200);
+  assert.equal(memberCard.json.kind, 'member');
+  const characterPreview = await call(routes, '/api/groupchat.portable-character-preview', {
+    body: { groupId, target: 'member', memberId: first.id, text: JSON.stringify(memberCard.json.data) },
+  });
+  assert.equal(characterPreview.status, 200);
+  assert.equal(characterPreview.json.fields.name, '甲');
+  assert.deepEqual(characterPreview.json.fields.relations, { [second.id]: '旧识' });
+
+  const ownerCard = await call(routes, '/api/groupchat.portable-export', {
+    body: { groupId, scope: 'owner', includeAvatars: true },
+  });
+  assert.equal(ownerCard.status, 200);
+  assert.equal(ownerCard.json.kind, 'owner');
+  const ownerPreview = await call(routes, '/api/groupchat.portable-character-preview', {
+    body: { groupId, target: 'owner', text: JSON.stringify(ownerCard.json.data) },
+  });
+  assert.equal(ownerPreview.status, 200);
+  assert.equal(ownerPreview.json.fields.name, '阿明');
+  assert.equal(ownerPreview.json.fields.setting, '设定。');
+  assert.deepEqual(ownerPreview.json.fields.relations, { [first.id]: '熟客' });
+
+  const wrongKind = await call(routes, '/api/groupchat.portable-character-preview', {
+    body: { groupId, target: 'owner', text: JSON.stringify(memberCard.json.data) },
+  });
+  assert.equal(wrongKind.status, 400);
+  assert.equal(wrongKind.json.error.code, 'groupchat/portable-wrong-kind');
 });
 
 test('routes reject invalid input without leaking internals', async (t) => {

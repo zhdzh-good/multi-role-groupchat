@@ -6,8 +6,21 @@
  * no public route and no second server.
  */
 
-import { budgetStop, formatTranscript, normalizeReply, ownerDisplayName, parseMentions, speakerName } from './protocol.js';
+import { budgetStop, formatTranscript, normalizeReply, ownerDisplayName, ownerProfile, parseMentions, speakerName } from './protocol.js';
 import { createGenerator, createRouteClassifier } from './generate.js';
+import {
+  GROUP_FORMAT,
+  PORTABLE_MAX_BYTES,
+  PortableError,
+  buildCharacterCard,
+  buildGroupBundle,
+  mapCharacterRelations,
+  normalizeCharacterCard,
+  normalizeGroupBundle,
+  parsePortable,
+  portableFilename,
+  previewGroupBundle,
+} from './portable.js';
 import { GroupChatError, makeId } from './store.js';
 import { runTurn } from './turn.js';
 
@@ -43,6 +56,10 @@ export function registerRoutes(ctx, store) {
   register('/api/groupchat.rewrite', ['POST'], (request) => handleRewrite(ctx, store, request));
   register('/api/groupchat.pin', ['POST'], (request) => handlePin(store, request));
   register('/api/groupchat.export', ['POST'], (request) => handleExport(store, request));
+  register('/api/groupchat.portable-export', ['POST'], (request) => handlePortableExport(store, request));
+  register('/api/groupchat.portable-group-preview', ['POST'], (request) => handlePortableGroupPreview(request));
+  register('/api/groupchat.portable-group-import', ['POST'], (request) => handlePortableGroupImport(store, request));
+  register('/api/groupchat.portable-character-preview', ['POST'], (request) => handlePortableCharacterPreview(store, request));
 }
 
 /**
@@ -55,8 +72,8 @@ async function guard(handler, request) {
   try {
     return await handler(request);
   } catch (error) {
-    const status = error instanceof GroupChatError ? error.status : 500;
-    const code = error instanceof GroupChatError ? error.code : 'groupchat/internal';
+    const status = error instanceof GroupChatError || error instanceof PortableError ? error.status : 500;
+    const code = error instanceof GroupChatError || error instanceof PortableError ? error.code : 'groupchat/internal';
     const message = error instanceof Error ? error.message : String(error);
     if (status >= 500) console.error('[multi-role-groupchat]', error);
     return json({ error: { code, message } }, status);
@@ -68,9 +85,9 @@ async function guard(handler, request) {
  * @param {Request} request - request.
  * @returns {Promise<object>} decoded object.
  */
-async function readBody(request) {
+async function readBody(request, maxLength = 1_000_000) {
   const text = await request.text();
-  if (text.length > 1_000_000) throw new GroupChatError('请求体过大。', 413, 'groupchat/body-too-large');
+  if (text.length > maxLength) throw new GroupChatError('请求体过大。', 413, 'groupchat/body-too-large');
   if (text.trim().length === 0) return {};
   try {
     const value = JSON.parse(text);
@@ -449,6 +466,185 @@ async function handleExport(store, request) {
   });
   const file = await store.writeExport(body.groupId, markdown);
   return json({ markdown, path: file, writtenAt: Math.floor(Date.now() / 1000) });
+}
+
+/**
+ * POST export one group backup or one character card.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} portable JSON metadata and data.
+ */
+async function handlePortableExport(store, request) {
+  const body = await readBody(request);
+  if (typeof body.groupId !== 'string') throw new GroupChatError('缺少 groupId。');
+  const live = await store.load(body.groupId);
+  const scope = body.scope === 'owner' || body.scope === 'member' ? body.scope : 'group';
+  const includeAvatars = body.includeAvatars !== false;
+  let data;
+  let filename;
+  let kind;
+  if (scope === 'group') {
+    data = buildGroupBundle({ group: live.group, members: live.members, includeAvatars });
+    filename = portableFilename(live.group.name, '.groupchat.json');
+    kind = 'group';
+  } else if (scope === 'owner') {
+    data = buildCharacterCard({
+      kind: 'owner',
+      profile: ownerProfile(live.group),
+      members: live.members,
+      includeAvatar: includeAvatars,
+    });
+    filename = portableFilename(data.character.name, '.owner.character.json');
+    kind = 'owner';
+  } else {
+    if (typeof body.memberId !== 'string') throw new GroupChatError('缺少 memberId。');
+    const member = live.members.find((candidate) => candidate.id === body.memberId);
+    if (member === undefined) throw new GroupChatError('成员不存在。', 404, 'groupchat/member-not-found');
+    data = buildCharacterCard({
+      kind: 'member',
+      profile: member,
+      members: live.members,
+      includeAvatar: includeAvatars,
+    });
+    filename = portableFilename(member.name, '.member.character.json');
+    kind = 'member';
+  }
+  const serialized = JSON.stringify(data);
+  return json({
+    kind,
+    format: data.format,
+    version: data.version,
+    filename,
+    bytes: Buffer.byteLength(serialized, 'utf8'),
+    data,
+  });
+}
+
+/**
+ * POST validate a group backup and return a preview without writing data.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} preview.
+ */
+async function handlePortableGroupPreview(request) {
+  const text = await readPortableText(request);
+  const parsed = parsePortable(text, 'group');
+  const normalized = normalizeGroupBundle(parsed.value);
+  const preview = previewGroupBundle(normalized, { bytes: Buffer.byteLength(text, 'utf8') });
+  return json({
+    kind: 'group',
+    format: GROUP_FORMAT,
+    version: parsed.version,
+    preview,
+    warnings: [...parsed.warnings, ...normalized.warnings],
+  });
+}
+
+/**
+ * POST import a group backup as a new group.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} created group and state.
+ */
+async function handlePortableGroupImport(store, request) {
+  const text = await readPortableText(request);
+  const parsed = parsePortable(text, 'group');
+  const normalized = normalizeGroupBundle(parsed.value);
+  const live = await store.importGroup(normalized);
+  return json({
+    groupId: live.gid,
+    state: await store.stateView(live.gid),
+    warnings: [...parsed.warnings, ...normalized.warnings],
+  });
+}
+
+/**
+ * POST validate one character card and map its relations onto current members.
+ * The browser fills the edit form; saving still goes through the normal routes.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} normalized form fields.
+ */
+async function handlePortableCharacterPreview(store, request) {
+  const body = await readBody(request, 6_000_000);
+  if (typeof body.groupId !== 'string') throw new GroupChatError('缺少 groupId。');
+  if (typeof body.text !== 'string' || body.text.trim().length === 0) {
+    throw new GroupChatError('缺少角色卡内容。');
+  }
+  if (Buffer.byteLength(body.text, 'utf8') > PORTABLE_MAX_BYTES) {
+    throw new PortableError('文件超过 4 MB，无法导入。', 'groupchat/portable-too-large', 413);
+  }
+  const target = body.target === 'owner' ? 'owner' : 'member';
+  const live = await store.load(body.groupId);
+  let memberId = null;
+  if (target === 'member' && typeof body.memberId === 'string') {
+    const member = live.members.find((candidate) => candidate.id === body.memberId);
+    if (member === undefined) throw new GroupChatError('成员不存在。', 404, 'groupchat/member-not-found');
+    memberId = member.id;
+  }
+  const parsed = parsePortable(body.text, 'character');
+  const normalized = normalizeCharacterCard(parsed.value, target);
+  const mapped = mapCharacterRelations(normalized.character, live.members, {
+    kind: target,
+    selfId: memberId,
+  });
+  const fields = target === 'owner'
+    ? {
+        name: normalized.character.name,
+        oneLiner: normalized.character.oneLiner,
+        setting: normalized.character.setting,
+        avatar: normalized.character.avatar,
+        relations: mapped.relations,
+      }
+    : {
+        name: normalized.character.name,
+        oneLiner: normalized.character.oneLiner,
+        core: normalized.character.core,
+        extended: normalized.character.extended,
+        extendedEnabled: normalized.character.extendedEnabled,
+        avatar: normalized.character.avatar,
+        relations: mapped.relations,
+        model: normalized.character.model,
+      };
+  const warnings = [...parsed.warnings, ...normalized.warnings, ...mapped.warnings];
+  const ownerName = ownerDisplayName(live.group);
+  const others = live.members.filter((member) => member.id !== memberId);
+  if (target === 'owner') {
+    if (others.some((member) => member.name === fields.name)) {
+      warnings.push(`已有成员叫“${fields.name}”，保存会因重名失败。`);
+    }
+  } else {
+    if (fields.name === ownerName) {
+      warnings.push(`角色已经叫“${ownerName}”，保存会因重名失败。`);
+    }
+    if (others.some((member) => member.name === fields.name)) {
+      warnings.push(`已有成员叫“${fields.name}”，保存会因重名失败。`);
+    }
+    if (memberId === null && live.members.length >= 3) {
+      warnings.push('这个群已有 3 个成员，新增前需要先移除一个。');
+    }
+  }
+  return json({
+    kind: 'character',
+    characterKind: target,
+    fields,
+    warnings,
+  });
+}
+
+/**
+ * Read and size-check a portable JSON payload.
+ * @param {Request} request - request.
+ * @returns {Promise<string>} JSON text.
+ */
+async function readPortableText(request) {
+  const body = await readBody(request, 6_000_000);
+  if (typeof body.text !== 'string' || body.text.trim().length === 0) {
+    throw new GroupChatError('缺少导入文件内容。');
+  }
+  if (Buffer.byteLength(body.text, 'utf8') > PORTABLE_MAX_BYTES) {
+    throw new PortableError('文件超过 4 MB，无法导入。', 'groupchat/portable-too-large', 413);
+  }
+  return body.text;
 }
 
 /**
