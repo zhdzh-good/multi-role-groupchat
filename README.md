@@ -4,7 +4,7 @@
 **多角色群聊插件**：你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天。消息默认全群可见，
 谁都可以用 `@名字` 把话交给别人。成员可以拥有只给自己看的私有记忆和私人关系。
 
-> 当前版本：**v1.3.1** · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
+> 当前版本：**v1.3.2** · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
 
 ## v1.1 更新：智能路由
 
@@ -43,6 +43,7 @@
 - **说话方式 `style`**：称呼、句长、口头禅、语气作为独立字段，只在本人 prompt 中出现
 - **prompt 分层**：角色核心 / 扩展 / 说话方式 / 本人关系 / 最近说过 / 场景 / 任务 / 提醒；system 前缀保持稳定，便于缓存
 - **模型下拉选择**：群/成员模型覆盖从宿主已注册的 provider / model 目录选择，不用手敲；目录失败可重试或回退输入
+- **接话链修复**：成员同时 `@你` 和 `@其他成员` 时，不再因为先看到 owner 就结束整轮；一次 `@` 多个成员会按队列依次接话，已排定的旁听者也不会被吞掉
 - **可重复 QA**：86 条路由样本、25 个角色场景、漂移指纹与概率扫描；真实模型运行需要显式 key
 
 ## 功能
@@ -57,7 +58,7 @@
 - 钉住、折叠早期消息、重写最新一条、token 预算、Markdown 导出
 - 删除群聊（输入群名确认，永久移除该群数据）
 - 头像设置、追加式事件日志、重启恢复
-- 92 项确定性测试，含随机稳定性压测、私有字段隔离与 QA fixture
+- 96 项确定性测试，含随机稳定性压测、私有字段隔离、接话链回归与 QA fixture
 
 ## 仓库结构
 
@@ -87,7 +88,7 @@ plugin_manager action=install_bundle target=<仓库路径>/multi-role-groupchat
 或直接安装 GitHub Release 的预构建 tarball：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.3.1/zhdzh-good-multi-role-groupchat-1.3.1.tgz"
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.3.2/zhdzh-good-multi-role-groupchat-1.3.2.tgz"
 ```
 
 安装或升级后刷新 Web 页面，左侧栏出现「群聊」。数据保存在

@@ -384,6 +384,7 @@ test('owner settings travel through the route and a custom owner name stops the 
     avatar: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC',
     relations: { [created.json.state.members[0].id]: '熟人' },
   };
+  await call(routes, '/api/groupchat.group-update', { body: { groupId, policy: { bystanderChance: 0 } } });
   const updated = await call(routes, '/api/groupchat.group-update', { body: { groupId, owner } });
   assert.equal(updated.status, 200);
   assert.deepEqual(updated.json.state.owner, owner);

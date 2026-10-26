@@ -1,6 +1,6 @@
 # 多角色群聊 · Multi-role Group Chat
 
-> 当前版本：**v1.3.1** · 仓库根目录 [README](../README.md)
+> 当前版本：**v1.3.2** · 仓库根目录 [README](../README.md)
 
 一个 DeepSeek Harness Web GUI 插件：**你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天**。消息默认全群可见；任何成员都可以用 `@名字` 把话交给别人，`@你的角色名` 表示交还控制。
 
@@ -13,6 +13,7 @@
 - **私有记忆 / 私人关系**：只进入本人 prompt；默认导出不含，显式勾选后才写入 `.private.` 文件
 - **说话方式 `style`**：称呼、句长、语气独立成字段，只在本人 prompt 中出现
 - **模型下拉选择**：群/成员模型覆盖从宿主 provider / model 目录选择；目录读取失败会显示错误并可重试，必要时回退为手动输入
+- **接话链修复**：成员消息同时提到 owner 和其他成员时，先处理成员接话，不因 owner 提前结束；一次 `@` 多个成员会按队列处理，已排定的旁听者也会继续
 - 我的角色：角色名（默认「用户」）、一句话、角色设定、与成员关系、头像
 - 群 + 2–3 成员、公开档案、核心 / 扩展设定、可选说话方式（style）、私有记忆 / 私人关系、成员模型下拉覆盖
 - 可重复 QA：86 条路由样本、25 个角色场景、概率扫描；真实模型运行需显式 key
@@ -76,7 +77,7 @@ export/script.md
 - 提及解析：`/@([^\s@，。！？、,.!?:：;；]{1,16})/g`，与成员显示名或角色名 **精确**匹配；旧 `@群主` 保留为兼容别名。未知 `@` 只当文本，不改路由。
 - 路由顺序：显式 `@` / 点名 → 「你/您」指向最近发言人 → 短续接指向最近发言人 → 小模型分类 → 本地轮转兜底。分类失败不会阻断回合。
 - 目标上限：`maxMentionReplies` 控制必答目标数（1–3）；其余成员各自按 `bystanderChance`（0–100）独立采样。
-- 生成上限：`目标数 + 概率接话人数 + maxHandoffDepth`。初始接话之后只沿显式 `@` 接话链继续，不再强制全群轮转。
+- 生成上限：`目标数 + 概率接话人数 + maxHandoffDepth`。初始接话之后只按显式 `@` 队列继续，每个成员一轮最多回复一次，不再强制全群轮转。
 - 轮转：只在路由失败时选一个兜底发言人；排除上一位发言人，`lastSpokeAt` 升序，同时间按 id 字典序。
 - prompt：稳定 system 前缀（群简介 + 角色档案 + 成员公开档案 + 规则）→ 历史（钉住优先，再取最近 `maxHistory` 条）→ 每轮尾部块（角色核心 / 扩展 / 说话方式 / 本人关系 / 最近说过 / 私有记忆 / 私人关系 / 场景 / 本轮任务 / 角色提醒）。私有字段只进入本人尾部；前缀不含时间戳、轮次号或随机 id。
 - 路由调用：只把群简介、成员公开一句话和最近 8 条对话发给分类模型，不发送成员核心设定；其 usage 写入 `route` 事件并计入群预算与导出汇总。
@@ -87,7 +88,7 @@ export/script.md
 
 ```bash
 cd multi-role-groupchat
-npm test                    # 92 个确定性测试（协议、路由、导入导出、编排、存储、HTTP、稳定性、私有字段隔离、QA fixture）
+npm test                    # 96 个确定性测试（协议、路由、导入导出、编排、存储、HTTP、稳定性、私有字段隔离、接话链回归、QA fixture）
 node --check client.js      # 浏览器模块语法
 ```
 
@@ -135,7 +136,7 @@ plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupch
 也可以直接用 GitHub Release 的预构建 tarball，免去本地路径：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.3.1/zhdzh-good-multi-role-groupchat-1.3.1.tgz"
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.3.2/zhdzh-good-multi-role-groupchat-1.3.2.tgz"
 ```
 
 安装或升级后刷新 Web 页面；左侧栏出现「群聊」。数据保存在

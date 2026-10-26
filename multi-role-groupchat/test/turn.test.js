@@ -216,6 +216,67 @@ test('a member handoff continues explicitly, and @角色名 ends the turn', asyn
   assert.equal(outcome.reason, 'owner');
 });
 
+test('a message can hand off to two members and each replies once', async () => {
+  const third = { id: 'c_chen', name: '陈默', public: { oneLiner: '', relations: {} }, core: '', extended: '', extendedEnabled: false, model: null };
+  const io = harness({
+    userText: '@林晚 你先说',
+    texts: ['@周野 @陈默 你们说。', '@用户 我说完了。', '@用户 我也说完了。'],
+    members: [members[0], members[1], third],
+    policy: { bystanderChance: 0, maxHandoffDepth: 2 },
+  });
+  const outcome = await runTurn(io);
+  assert.equal(outcome.generated, 3);
+  assert.deepEqual(io.calls.map((call) => call.member.id), ['c_lin', 'c_zhou', 'c_chen']);
+  assert.deepEqual(io.calls.map((call) => call.routeRole), ['addressed', 'handoff', 'handoff']);
+  assert.equal(outcome.reason, 'owner');
+});
+
+test('a member addressing the owner does not cancel planned bystanders', async () => {
+  const io = harness({
+    userText: '@林晚 你先说',
+    texts: ['@用户 我没事。', '那我也说一句。'],
+    policy: { bystanderChance: 100 },
+    random: () => 0,
+  });
+  const outcome = await runTurn(io);
+  assert.equal(outcome.generated, 2);
+  assert.deepEqual(io.calls.map((call) => call.member.id), ['c_lin', 'c_zhou']);
+  assert.deepEqual(io.calls.map((call) => call.routeRole), ['addressed', 'bystander']);
+  assert.equal(outcome.reason, 'settled');
+});
+
+test('a mentioned member who is already a planned bystander is not skipped or duplicated', async () => {
+  const third = { id: 'c_chen', name: '陈默', public: { oneLiner: '', relations: {} }, core: '', extended: '', extendedEnabled: false, model: null };
+  const rolls = [0, 1];
+  const io = harness({
+    userText: '@林晚 你先说',
+    texts: ['@周野 @陈默 你们说。', '@用户 我说完了。', '@用户 我也说完了。'],
+    members: [members[0], members[1], third],
+    policy: { bystanderChance: 100, maxHandoffDepth: 2 },
+    random: () => rolls.shift() ?? 1,
+  });
+  const outcome = await runTurn(io);
+  assert.equal(outcome.generated, 3);
+  assert.deepEqual(io.calls.map((call) => call.member.id), ['c_lin', 'c_zhou', 'c_chen']);
+  assert.deepEqual(io.calls.map((call) => call.routeRole), ['addressed', 'bystander', 'handoff']);
+  assert.deepEqual(io.routes[0].bystanders, ['c_zhou']);
+  assert.equal(outcome.reason, 'owner');
+});
+
+test('an owner mention plus a member mention still hands off to that member', async () => {
+  const io = harness({
+    userText: '@林晚 你先说',
+    texts: ['@用户 先别急。@周野 你来说。', '@用户 我说完了。'],
+    policy: { bystanderChance: 0 },
+  });
+  const outcome = await runTurn(io);
+  assert.equal(outcome.generated, 2);
+  assert.deepEqual(io.calls.map((call) => call.member.id), ['c_lin', 'c_zhou']);
+  assert.deepEqual(io.calls.map((call) => call.routeRole), ['addressed', 'handoff']);
+  assert.equal(outcome.reason, 'owner');
+  assert.equal(io.messages.at(-1).mentionsOwner, true);
+});
+
 test('a custom owner name is a valid handoff target', async () => {
   const io = harness({
     userText: '@林晚 你先说',

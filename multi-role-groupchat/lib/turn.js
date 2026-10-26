@@ -131,7 +131,6 @@ export async function runTurn(input) {
 
   let last = userMessage;
   let generated = 0;
-  let handoff = 0;
 
   const finish = (reason) => ({ generated, reason });
 
@@ -186,7 +185,7 @@ export async function runTurn(input) {
         activeMessages: getActive(),
         sourceUserText: userText,
         replyIndex,
-        previousName: speakerName(last, members, ownerName),
+        previousName: speakerName(replyTo ?? last, members, ownerName),
         routeRole,
         signal,
       });
@@ -249,6 +248,25 @@ export async function runTurn(input) {
   ];
   const cap = generationCap(initial.length, policy);
 
+  // Explicit member mentions are queued rather than followed only through the
+  // last message. A single message can hand the floor to two people, and a
+  // planned bystander must not erase an earlier handoff.
+  const replied = new Set();
+  const scheduled = new Set(initial.map((entry) => entry.id));
+  const pending = [];
+  let depthBlocked = false;
+  const scheduleMentions = (message, nextDepth) => {
+    for (const id of message.mentions) {
+      if (id === message.memberId || !memberMap.has(id) || replied.has(id) || scheduled.has(id)) continue;
+      if (nextDepth > depth) {
+        depthBlocked = true;
+        continue;
+      }
+      pending.push({ id, depth: nextDepth, from: message });
+      scheduled.add(id);
+    }
+  };
+
   for (const entry of initial) {
     if (signal.aborted) return stopped();
     if (generated >= cap) return finish('cap');
@@ -257,26 +275,27 @@ export async function runTurn(input) {
     if (member === undefined) continue;
     const message = await reply(member, last, entry.role);
     if (message === null) return finish('interrupted');
-    if (message.mentionsOwner) return finish('owner');
+    replied.add(entry.id);
+    scheduleMentions(message, 1);
   }
 
-  // Only explicit handoffs continue the turn. The old rotation loop would
-  // quietly force every member to answer even when the router chose one
-  // addressee, which defeats the probability gate above.
-  while (!signal.aborted) {
-    if (last.mentionsOwner) return finish('owner');
+  for (let cursor = 0; cursor < pending.length; cursor += 1) {
+    if (signal.aborted) return stopped();
     if (generated >= cap) return finish('cap');
     if (budgetReason() !== null) return pauseForBudget();
-    const mentioned = last.mentions.find((id) => id !== last.memberId && memberMap.has(id));
-    if (mentioned === undefined) return finish('settled');
-    if (handoff >= depth) return finish('cap');
-    handoff += 1;
-    const member = memberMap.get(mentioned);
-    if (member === undefined) return finish('no-speaker');
-    const message = await reply(member, last, 'handoff');
+    const entry = pending[cursor];
+    const member = memberMap.get(entry.id);
+    if (member === undefined) continue;
+    const message = await reply(member, entry.from, 'handoff');
     if (message === null) return finish('interrupted');
+    replied.add(entry.id);
+    scheduleMentions(message, entry.depth + 1);
   }
-  return stopped();
+
+  if (signal.aborted) return stopped();
+  if (budgetReason() !== null) return pauseForBudget();
+  if (depthBlocked) return finish('cap');
+  return finish(last.mentionsOwner ? 'owner' : 'settled');
 }
 
 /**

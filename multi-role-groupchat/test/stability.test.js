@@ -126,13 +126,10 @@ function assertTurnInvariants(live, gid, expectedCap, generated) {
   assert.ok(pinned.length <= live.group.policy.maxPinned, 'pin ceiling holds');
   const selection = selectHistory(live.state.active, live.group.policy);
   assert.equal(selection.folded.length + selection.window.length + selection.pinned.length, live.state.active.length);
-  for (const message of live.state.messages) {
-    if (message.role !== 'member' || message.mentionsOwner !== true) continue;
-    const later = live.state.active.find(
-      (candidate) => candidate.turnId === message.turnId && candidate.seq > message.seq,
-    );
-    assert.equal(later, undefined, 'a member that @群主 is the last reply of its turn');
-  }
+  // Owner mentions no longer force the turn to end before already-planned
+  // bystanders or an explicit member handoff in the same message. The turn
+  // engine's own tests pin that behavior; here we only keep the structural
+  // invariants below.
   const byTurn = new Map();
   for (const message of live.state.active) {
     if (message.role !== 'member') continue;
@@ -149,7 +146,11 @@ function assertTurnInvariants(live, gid, expectedCap, generated) {
     const user = live.state.active.find((message) => message.turnId === turnId && message.role === 'user');
     assert.ok(user !== undefined, 'every reply belongs to a turn with an owner message');
     replies.forEach((message, index) => {
-      assert.equal(message.replyTo, index === 0 ? user.id : replies[index - 1].id, 'replyTo follows the turn chain');
+      const replied = live.state.byId.get(message.replyTo);
+      assert.ok(replied !== undefined, 'replyTo points at a stored message');
+      assert.equal(replied.turnId, turnId, 'replyTo stays inside the turn');
+      assert.ok(replied.seq < message.seq, 'replyTo points backwards');
+      if (index === 0) assert.equal(message.replyTo, user.id, 'the first reply answers the owner');
       if (index > 0) {
         assert.notEqual(message.memberId, replies[index - 1].memberId, 'the same member never speaks twice in a row');
       }
