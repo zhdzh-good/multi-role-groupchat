@@ -480,12 +480,13 @@ async function handlePortableExport(store, request) {
   const live = await store.load(body.groupId);
   const scope = body.scope === 'owner' || body.scope === 'member' ? body.scope : 'group';
   const includeAvatars = body.includeAvatars !== false;
+  const includePrivate = body.includePrivate === true;
   let data;
   let filename;
   let kind;
   if (scope === 'group') {
-    data = buildGroupBundle({ group: live.group, members: live.members, includeAvatars });
-    filename = portableFilename(live.group.name, '.groupchat.json');
+    data = buildGroupBundle({ group: live.group, members: live.members, includeAvatars, includePrivate });
+    filename = portableFilename(live.group.name, includePrivate ? '.private.groupchat.json' : '.groupchat.json');
     kind = 'group';
   } else if (scope === 'owner') {
     data = buildCharacterCard({
@@ -493,6 +494,7 @@ async function handlePortableExport(store, request) {
       profile: ownerProfile(live.group),
       members: live.members,
       includeAvatar: includeAvatars,
+      includePrivate,
     });
     filename = portableFilename(data.character.name, '.owner.character.json');
     kind = 'owner';
@@ -505,8 +507,9 @@ async function handlePortableExport(store, request) {
       profile: member,
       members: live.members,
       includeAvatar: includeAvatars,
+      includePrivate,
     });
-    filename = portableFilename(member.name, '.member.character.json');
+    filename = portableFilename(member.name, includePrivate ? '.private.member.character.json' : '.member.character.json');
     kind = 'member';
   }
   const serialized = JSON.stringify(data);
@@ -599,6 +602,8 @@ async function handlePortableCharacterPreview(store, request) {
         name: normalized.character.name,
         oneLiner: normalized.character.oneLiner,
         style: normalized.character.style,
+        memory: normalized.character.memory,
+        privateRelations: mapped.privateRelations,
         core: normalized.character.core,
         extended: normalized.character.extended,
         extendedEnabled: normalized.character.extendedEnabled,

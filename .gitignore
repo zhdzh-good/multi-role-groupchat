@@ -3,3 +3,9 @@
 
 # Local UI reference images
 /multi-role-groupchat/reference.png
+
+# Opt-in private character/group exports
+*.private.*.json
+
+# Private member memory (runtime data normally lives under $DSH_HOME)
+**/members/*/setting/memory.md

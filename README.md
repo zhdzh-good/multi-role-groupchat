@@ -2,9 +2,9 @@
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web GUI 的
 **多角色群聊插件**：你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天。消息默认全群可见，
-谁都可以用 `@名字` 把话交给别人。
+谁都可以用 `@名字` 把话交给别人。成员可以拥有只给自己看的私有记忆和私人关系。
 
-> 当前版本：**v1.2.0** · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
+> 当前版本：**v1.3.0** · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
 
 ## v1.1 更新：智能路由
 
@@ -35,10 +35,20 @@
 
 当前只支持 JSON；YAML 留作后续可选项。
 
+## v1.3 更新：私有记忆、角色贴合度与可重复 QA
+
+- **私有记忆**：每个成员可维护一份 `memory.md`，只进入该成员自己的 prompt 尾部，不进入群简介、system 前缀、路由器或其他成员的 prompt
+- **私人关系**：每个成员可以单独记录对其他成员的私下看法，同样只给本人看；公开关系仍然全群可见
+- **默认不泄露**：群/成员卡导出默认不含私有字段；只有显式勾选「包含私有记忆」才会写入，文件名带 `.private.` 提示妥善保管
+- **说话方式 `style`**：称呼、句长、口头禅、语气作为独立字段，只在本人 prompt 中出现
+- **prompt 分层**：角色核心 / 扩展 / 说话方式 / 本人关系 / 最近说过 / 场景 / 任务 / 提醒；system 前缀保持稳定，便于缓存
+- **可重复 QA**：86 条路由样本、25 个角色场景、漂移指纹与概率扫描；真实模型运行需要显式 key
+
 ## 功能
 
 - 智能路由：没有 `@` 时也能判断对谁说；目标必答，其余成员按概率接话
 - 角色卡 / 群配置 JSON 导入导出：关系按名字迁移，头像可选，导入前预览
+- 成员私有记忆 / 私人关系：只进入本人 prompt；默认导出不含，勾选后才写入
 - 可重复 QA：86 条路由样本、25 个角色场景、概率扫描；真实模型运行需显式 key
 - 我的角色档案（默认名「用户」，可改名）、群聊面板、成员设定、群级/成员级模型覆盖
 - `@` 路由、显式接话链、`@角色名` 交还控制（旧 `@群主` 兼容）、接话跳数上限
@@ -46,7 +56,7 @@
 - 钉住、折叠早期消息、重写最新一条、token 预算、Markdown 导出
 - 删除群聊（输入群名确认，永久移除该群数据）
 - 头像设置、追加式事件日志、重启恢复
-- 90 项确定性测试，含随机稳定性压测与 QA fixture
+- 92 项确定性测试，含随机稳定性压测、私有字段隔离与 QA fixture
 
 ## 仓库结构
 
@@ -76,7 +86,7 @@ plugin_manager action=install_bundle target=<仓库路径>/multi-role-groupchat
 或直接安装 GitHub Release 的预构建 tarball：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.2.0/zhdzh-good-multi-role-groupchat-1.2.0.tgz"
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.3.0/zhdzh-good-multi-role-groupchat-1.3.0.tgz"
 ```
 
 安装或升级后刷新 Web 页面，左侧栏出现「群聊」。数据保存在

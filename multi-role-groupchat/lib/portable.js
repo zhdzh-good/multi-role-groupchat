@@ -39,6 +39,9 @@ const MAX_ONE_LINER_CHARS = 400;
 /** Largest accepted voice/style note. */
 const MAX_STYLE_CHARS = 300;
 
+/** Largest accepted private memory note. */
+const MAX_MEMORY_CHARS = 4000;
+
 /** Largest accepted single relation description. */
 const MAX_RELATION_CHARS = 200;
 
@@ -69,10 +72,11 @@ export class PortableError extends Error {
  * @param {object} input.group - group document.
  * @param {Array<object>} input.members - member documents.
  * @param {boolean} [input.includeAvatars] - include data-URL avatars.
+ * @param {boolean} [input.includePrivate] - include private memory/relations.
  * @param {number|string|Date} [input.exportedAt] - export time.
  * @returns {object} JSON-safe bundle.
  */
-export function buildGroupBundle({ group, members, includeAvatars = true, exportedAt = Math.floor(Date.now() / 1000) }) {
+export function buildGroupBundle({ group, members, includeAvatars = true, includePrivate = false, exportedAt = Math.floor(Date.now() / 1000) }) {
   const owner = group.owner ?? { name: '用户' };
   return {
     format: GROUP_FORMAT,
@@ -97,6 +101,10 @@ export function buildGroupBundle({ group, members, includeAvatars = true, export
       name: member.name,
       oneLiner: member.public?.oneLiner ?? '',
       style: member.style ?? '',
+      ...(includePrivate ? {
+        memory: member.memory ?? '',
+        privateRelations: relationNames(member.privateRelations, members, member.id),
+      } : {}),
       core: member.core ?? '',
       extended: member.extended ?? '',
       extendedEnabled: member.extendedEnabled === true,
@@ -115,10 +123,11 @@ export function buildGroupBundle({ group, members, includeAvatars = true, export
  * @param {object} input.profile - owner or member document.
  * @param {Array<object>} input.members - current members, used to name relations.
  * @param {boolean} [input.includeAvatar] - include the data-URL avatar.
+ * @param {boolean} [input.includePrivate] - include private memory/relations.
  * @param {number|string|Date} [input.exportedAt] - export time.
  * @returns {object} JSON-safe character card.
  */
-export function buildCharacterCard({ kind, profile, members, includeAvatar = true, exportedAt = Math.floor(Date.now() / 1000) }) {
+export function buildCharacterCard({ kind, profile, members, includeAvatar = true, includePrivate = false, exportedAt = Math.floor(Date.now() / 1000) }) {
   if (kind !== 'owner' && kind !== 'member') {
     throw new PortableError('角色卡类型必须是 owner 或 member。');
   }
@@ -137,6 +146,10 @@ export function buildCharacterCard({ kind, profile, members, includeAvatar = tru
         name: profile.name,
         oneLiner: profile.public?.oneLiner ?? '',
         style: profile.style ?? '',
+        ...(includePrivate ? {
+          memory: profile.memory ?? '',
+          privateRelations: relationNames(profile.privateRelations, members, profile.id),
+        } : {}),
         core: profile.core ?? '',
         extended: profile.extended ?? '',
         extendedEnabled: profile.extendedEnabled === true,
@@ -269,7 +282,7 @@ export function normalizeGroupBundle(value) {
 
   const members = entries.map(({ name: memberName, raw }) => {
     const displayed = `成员“${memberName}”`;
-    warnUnknown(raw, ['name', 'oneLiner', 'style', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'], displayed, warnings);
+    warnUnknown(raw, ['name', 'oneLiner', 'style', 'memory', 'privateRelations', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'], displayed, warnings);
     const model = normalizeModel(raw.model);
     if (raw.model !== null && raw.model !== undefined && model === null) {
       warnings.push(`${displayed}的模型覆盖无法识别，已忽略。`);
@@ -278,6 +291,8 @@ export function normalizeGroupBundle(value) {
       name: memberName,
       oneLiner: stringField(raw.oneLiner, `${displayed}一句话`, MAX_ONE_LINER_CHARS),
       style: stringField(raw.style, `${displayed}说话方式`, MAX_STYLE_CHARS),
+      memory: stringField(raw.memory, `${displayed}私有记忆`, MAX_MEMORY_CHARS),
+      privateRelations: normalizeNamedRelations(raw.privateRelations, `${displayed}私人关系`, warnings, memberName, memberNames),
       core: stringField(raw.core, `${displayed}核心设定`, MAX_SETTING_CHARS),
       extended: stringField(raw.extended, `${displayed}扩展设定`, MAX_SETTING_CHARS),
       extendedEnabled: raw.extendedEnabled === true,
@@ -338,7 +353,7 @@ export function normalizeCharacterCard(value, expectedKind = null) {
     raw,
     kind === 'owner'
       ? ['name', 'oneLiner', 'setting', 'avatar', 'relations']
-      : ['name', 'oneLiner', 'style', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'],
+      : ['name', 'oneLiner', 'style', 'memory', 'privateRelations', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'],
     kind === 'owner' ? '我的角色' : '成员卡',
     warnings,
   );
@@ -371,6 +386,8 @@ export function normalizeCharacterCard(value, expectedKind = null) {
       name,
       oneLiner: stringField(raw.oneLiner, '成员一句话', MAX_ONE_LINER_CHARS),
       style: stringField(raw.style, '成员说话方式', MAX_STYLE_CHARS),
+      memory: stringField(raw.memory, '成员私有记忆', MAX_MEMORY_CHARS),
+      privateRelations: normalizeNamedRelations(raw.privateRelations, '成员私人关系', warnings, name, null),
       core: stringField(raw.core, '核心设定', MAX_SETTING_CHARS),
       extended: stringField(raw.extended, '扩展设定', MAX_SETTING_CHARS),
       extendedEnabled: raw.extendedEnabled === true,
@@ -389,13 +406,14 @@ export function normalizeCharacterCard(value, expectedKind = null) {
  * @param {object} character - normalized character.
  * @param {Array<object>} members - current members.
  * @param {{kind?: 'owner'|'member', selfId?: string|null}} [options] - target context.
- * @returns {{relations: Record<string,string>, warnings: string[]}} mapped relations.
+ * @returns {{relations: Record<string,string>, privateRelations: Record<string,string>, warnings: string[]}} mapped relations.
  */
 export function mapCharacterRelations(character, members, options = {}) {
   const kind = options.kind ?? 'member';
   const selfId = options.selfId ?? null;
   const byName = new Map(members.map((member) => [member.name, member.id]));
   const relations = {};
+  const privateRelations = {};
   const warnings = [];
   for (const [name, text] of Object.entries(character.relations ?? {})) {
     if (kind === 'member' && (name === character.name || (selfId !== null && byName.get(name) === selfId))) {
@@ -408,7 +426,18 @@ export function mapCharacterRelations(character, members, options = {}) {
     }
     relations[id] = text;
   }
-  return { relations, warnings };
+  for (const [name, text] of Object.entries(character.privateRelations ?? {})) {
+    if (kind === 'member' && (name === character.name || (selfId !== null && byName.get(name) === selfId))) {
+      continue;
+    }
+    const id = byName.get(name);
+    if (id === undefined) {
+      warnings.push(`私人关系对象“${name}”不在当前群，已跳过。`);
+      continue;
+    }
+    privateRelations[id] = text;
+  }
+  return { relations, privateRelations, warnings };
 }
 
 /**
@@ -430,6 +459,8 @@ export function previewGroupBundle(bundle, meta = {}) {
       name: member.name,
       oneLiner: member.oneLiner,
       styleChars: [...member.style].length,
+      privateMemoryChars: [...(member.memory ?? '')].length,
+      privateRelationCount: Object.keys(member.privateRelations ?? {}).length,
       coreChars: [...member.core].length,
       extendedChars: [...member.extended].length,
       hasAvatar: member.avatar !== null,

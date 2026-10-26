@@ -152,6 +152,8 @@ test('members can be edited, added, and validated', async (t) => {
     name: '甲一',
     oneLiner: '改过了',
     style: '句子短，叫甲“你”。',
+    memory: '甲最近失业了，但我不想点破。',
+    privateRelations: { [live.members[1].id]: '我其实还没完全信任他。' },
     core: '新核心',
     extended: '新扩展',
     extendedEnabled: true,
@@ -161,9 +163,18 @@ test('members can be edited, added, and validated', async (t) => {
   assert.equal(updated.name, '甲一');
   assert.equal(updated.extendedEnabled, true);
   assert.equal(updated.style, '句子短，叫甲“你”。');
+  assert.equal(updated.memory, '甲最近失业了，但我不想点破。');
+  assert.equal(updated.privateRelations[live.members[1].id], '我其实还没完全信任他。');
   assert.deepEqual(updated.model, { provider: 'deepseek', model: 'deepseek-chat' });
   assert.deepEqual(updated.public.relations, { [live.members[1].id]: '熟人' });
-  assert.equal((await new GroupStore(store.root).stateView(live.gid)).members[0].style, '句子短，叫甲“你”。');
+  const reloaded = await new GroupStore(store.root).stateView(live.gid);
+  assert.equal(reloaded.members[0].style, '句子短，叫甲“你”。');
+  assert.equal(reloaded.members[0].memory, '甲最近失业了，但我不想点破。');
+  assert.equal(reloaded.members[0].privateRelations[live.members[1].id], '我其实还没完全信任他。');
+  const card = JSON.parse(await readFile(path.join(live.dir, 'members', first.id, 'card.json'), 'utf8'));
+  assert.equal(card.privateRelations[live.members[1].id], '我其实还没完全信任他。');
+  assert.doesNotMatch(JSON.stringify(card), /甲最近失业了/);
+  assert.equal(await readFile(path.join(live.dir, 'members', first.id, 'setting', 'memory.md'), 'utf8'), '甲最近失业了，但我不想点破。');
 
   // Avatars are opaque strings on the Host (the browser stores a 128×128 data URL).
   const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC';
@@ -178,6 +189,18 @@ test('members can be edited, added, and validated', async (t) => {
   await assert.rejects(
     store.saveMember(live.gid, { memberId: live.members[1].id, name: '乙', style: '长'.repeat(301) }),
     (error) => error instanceof GroupChatError && /说话方式/.test(error.message),
+  );
+  await assert.rejects(
+    store.saveMember(live.gid, { memberId: live.members[1].id, name: '乙', memory: '长'.repeat(4001) }),
+    (error) => error instanceof GroupChatError && /私有记忆/.test(error.message),
+  );
+  await assert.rejects(
+    store.saveMember(live.gid, {
+      memberId: live.members[1].id,
+      name: '乙',
+      privateRelations: { [live.members[0].id]: '长'.repeat(201) },
+    }),
+    (error) => error instanceof GroupChatError && /私人关系/.test(error.message),
   );
   await assert.rejects(
     store.saveMember(live.gid, { memberId: live.members[1].id, name: '甲一' }),

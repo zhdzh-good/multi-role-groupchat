@@ -20,3 +20,7 @@ Thumbs.db
 
 # QA generated machine reports (Markdown baselines are tracked)
 qa/reports/*.json
+
+# Private member memory and opt-in private exports must never be committed
+**/members/*/setting/memory.md
+*.private.*.json

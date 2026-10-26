@@ -253,6 +253,8 @@ test('portable routes export, preview, and import a group without ids', async (t
       extended: '扩展背景。',
       extendedEnabled: true,
       relations: { [second.id]: '旧识' },
+      privateRelations: { [second.id]: '我其实还没完全信任他。' },
+      memory: '阿明最近失业了，但我不想点破。',
     },
   });
   await call(routes, '/api/groupchat.group-update', {
@@ -272,9 +274,19 @@ test('portable routes export, preview, and import a group without ids', async (t
   assert.equal(exported.json.data.group.owner.relations[first.name], '熟客');
   assert.equal(exported.json.data.members[0].relations[second.name], '旧识');
   assert.equal(JSON.stringify(exported.json.data).includes(first.id), false);
+  assert.equal('memory' in exported.json.data.members[0], false);
+  assert.equal('privateRelations' in exported.json.data.members[0], false);
 
-  exported.json.data.group.name = '导入后的群';
-  const text = JSON.stringify(exported.json.data);
+  const privateExport = await call(routes, '/api/groupchat.portable-export', {
+    body: { groupId, scope: 'group', includeAvatars: false, includePrivate: true },
+  });
+  assert.equal(privateExport.status, 200);
+  assert.match(privateExport.json.filename, /\.private\.groupchat\.json$/);
+  assert.equal(privateExport.json.data.members[0].memory, '阿明最近失业了，但我不想点破。');
+  assert.equal(privateExport.json.data.members[0].privateRelations[second.name], '我其实还没完全信任他。');
+
+  privateExport.json.data.group.name = '导入后的群';
+  const text = JSON.stringify(privateExport.json.data);
   const preview = await call(routes, '/api/groupchat.portable-group-preview', { body: { text } });
   assert.equal(preview.status, 200);
   assert.equal(preview.json.preview.groupName, '导入后的群');
@@ -290,6 +302,8 @@ test('portable routes export, preview, and import a group without ids', async (t
   const importedFirst = imported.json.state.members.find((member) => member.name === '甲');
   const importedSecond = imported.json.state.members.find((member) => member.name === '乙');
   assert.equal(importedFirst.public.relations[importedSecond.id], '旧识');
+  assert.equal(importedFirst.privateRelations[importedSecond.id], '我其实还没完全信任他。');
+  assert.equal(importedFirst.memory, '阿明最近失业了，但我不想点破。');
   assert.equal(imported.json.state.owner.relations[importedFirst.id], '熟客');
 
   const memberCard = await call(routes, '/api/groupchat.portable-export', {
@@ -297,12 +311,24 @@ test('portable routes export, preview, and import a group without ids', async (t
   });
   assert.equal(memberCard.status, 200);
   assert.equal(memberCard.json.kind, 'member');
+  assert.equal('memory' in memberCard.json.data.character, false);
   const characterPreview = await call(routes, '/api/groupchat.portable-character-preview', {
     body: { groupId, target: 'member', memberId: first.id, text: JSON.stringify(memberCard.json.data) },
   });
   assert.equal(characterPreview.status, 200);
   assert.equal(characterPreview.json.fields.name, '甲');
   assert.deepEqual(characterPreview.json.fields.relations, { [second.id]: '旧识' });
+  assert.equal(characterPreview.json.fields.memory, '');
+  const privateCard = await call(routes, '/api/groupchat.portable-export', {
+    body: { groupId, scope: 'member', memberId: first.id, includeAvatars: true, includePrivate: true },
+  });
+  assert.match(privateCard.json.filename, /\.private\.member\.character\.json$/);
+  const privatePreview = await call(routes, '/api/groupchat.portable-character-preview', {
+    body: { groupId, target: 'member', memberId: first.id, text: JSON.stringify(privateCard.json.data) },
+  });
+  assert.equal(privatePreview.status, 200);
+  assert.equal(privatePreview.json.fields.memory, '阿明最近失业了，但我不想点破。');
+  assert.deepEqual(privatePreview.json.fields.privateRelations, { [second.id]: '我其实还没完全信任他。' });
 
   const ownerCard = await call(routes, '/api/groupchat.portable-export', {
     body: { groupId, scope: 'owner', includeAvatars: true },

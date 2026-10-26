@@ -96,6 +96,25 @@ test('private material stays out of the shared system prefix while public data r
   assert.doesNotMatch(prompt.system, /句子短/);
 });
 
+test('one member\'s private memory and relations never enter another member\'s tail', () => {
+  const prompt = buildPrompt({
+    group,
+    members,
+    activeMessages: messages,
+    member: members[1],
+    sourceUserText: '周野，你说。',
+    replyIndex: 1,
+    previousName: '阿明',
+    routeRole: 'addressed',
+  });
+  const tail = prompt.messages.at(-1).content[0].text;
+  assert.doesNotMatch(prompt.system, /阿明最近失业了/);
+  assert.doesNotMatch(prompt.system, /我欠他一个人情/);
+  assert.doesNotMatch(tail, /阿明最近失业了/);
+  assert.doesNotMatch(tail, /我欠他一个人情/);
+  assert.match(tail, /电工。秘密：我知道闸是林晚拉的。/);
+});
+
 test('the system prefix stays byte-identical while the tail changes by role and turn', () => {
   const base = {
     group,

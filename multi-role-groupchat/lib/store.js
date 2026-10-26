@@ -43,6 +43,9 @@ const MAX_SETTING_CHARS = 20000;
 /** Optional voice/style note injected only for the speaking member. */
 const MAX_STYLE_CHARS = 300;
 
+/** Private, manually curated memory; never enters shared prompts or exports by default. */
+const MAX_MEMORY_CHARS = 4000;
+
 /**
  * The plugin's data directory. `DSH_HOME` is set by a profile-launched
  * Harness; the fallback keeps a bare `dsh` launch working.
@@ -240,12 +243,17 @@ export class GroupStore {
           oneLiner: typeof draft.oneLiner === 'string' ? draft.oneLiner.trim() : '',
           relations: {},
         },
+        privateRelations: {},
         extendedEnabled: false,
         style: typeof draft.style === 'string' ? draft.style.trim().slice(0, MAX_STYLE_CHARS) : '',
         model: null,
       };
       seen.push({ id, name: validation.name });
-      members.push({ card, core: typeof draft.core === 'string' ? draft.core : '' });
+      members.push({
+        card,
+        core: typeof draft.core === 'string' ? draft.core : '',
+        memory: typeof draft.memory === 'string' ? draft.memory : '',
+      });
     }
     const gid = makeId('g');
     const now = Math.floor(Date.now() / 1000);
@@ -271,6 +279,7 @@ export class GroupStore {
       await writeJson(path.join(memberDir, 'card.json'), member.card);
       await writeText(path.join(memberDir, 'setting', 'core.md'), member.core);
       await writeText(path.join(memberDir, 'setting', 'extended.md'), '');
+      await writeText(path.join(memberDir, 'setting', 'memory.md'), member.memory);
     }
     await writeText(path.join(dir, 'events.jsonl'), '');
     await writeJson(path.join(dir, 'group.json'), group);
@@ -295,6 +304,7 @@ export class GroupStore {
       oneLiner: member.oneLiner,
       core: member.core,
       style: member.style ?? '',
+      memory: member.memory ?? '',
     }));
     const live = await this.createGroup({
       name: input.name,
@@ -320,7 +330,9 @@ export class GroupStore {
           oneLiner: member.oneLiner,
           avatar: member.avatar,
           relations: mapRelationNames(member.relations, byName, member.name),
+          privateRelations: mapRelationNames(member.privateRelations, byName, member.name),
           style: member.style ?? '',
+          memory: member.memory ?? '',
           core: member.core,
           extended: member.extended,
           extendedEnabled: member.extendedEnabled,
@@ -435,8 +447,22 @@ export class GroupStore {
         relations[otherId] = text.trim();
       }
     }
+    const privateRelations = {};
+    if (input?.privateRelations === undefined) {
+      Object.assign(privateRelations, existing?.privateRelations ?? {});
+    } else if (input.privateRelations !== null && typeof input.privateRelations === 'object') {
+      for (const [otherId, text] of Object.entries(input.privateRelations)) {
+        if (otherId === memberId) continue;
+        if (!live.members.some((member) => member.id === otherId)) continue;
+        if (typeof text !== 'string' || text.trim().length === 0) continue;
+        if ([...text].length > 200) throw new GroupChatError('单条私人关系描述最多 200 个字符。');
+        privateRelations[otherId] = text.trim();
+      }
+    }
     const style = typeof input?.style === 'string' ? input.style.trim() : existing?.style ?? '';
     if ([...style].length > MAX_STYLE_CHARS) throw new GroupChatError(`说话方式最多 ${MAX_STYLE_CHARS} 个字符。`);
+    const memory = typeof input?.memory === 'string' ? input.memory : existing?.memory ?? '';
+    if ([...memory].length > MAX_MEMORY_CHARS) throw new GroupChatError(`私有记忆最多 ${MAX_MEMORY_CHARS} 个字符。`);
     const core = typeof input?.core === 'string' ? input.core : existing?.core ?? '';
     const extended = typeof input?.extended === 'string' ? input.extended : existing?.extended ?? '';
     if ([...core].length > MAX_SETTING_CHARS) throw new GroupChatError(`核心设定最多 ${MAX_SETTING_CHARS} 个字符。`);
@@ -448,6 +474,7 @@ export class GroupStore {
       name: validation.name,
       avatar: typeof input?.avatar === 'string' ? input.avatar : existing?.avatar ?? null,
       public: { oneLiner, relations },
+      privateRelations,
       style,
       extendedEnabled: input?.extendedEnabled === undefined
         ? existing?.extendedEnabled === true
@@ -459,7 +486,8 @@ export class GroupStore {
     await writeJson(path.join(memberDir, 'card.json'), card);
     await writeText(path.join(memberDir, 'setting', 'core.md'), core);
     await writeText(path.join(memberDir, 'setting', 'extended.md'), extended);
-    const member = { ...card, core, extended };
+    await writeText(path.join(memberDir, 'setting', 'memory.md'), memory);
+    const member = { ...card, core, extended, memory };
     const index = live.members.findIndex((candidate) => candidate.id === id);
     if (index >= 0) live.members[index] = member;
     else live.members.push(member);
@@ -700,9 +728,11 @@ export function buildStateView(live, turn) {
       name: member.name,
       avatar: member.avatar ?? null,
       public: member.public ?? { oneLiner: '', relations: {} },
+      privateRelations: member.privateRelations ?? {},
       extendedEnabled: member.extendedEnabled === true,
       model: member.model ?? null,
       style: typeof member.style === 'string' ? member.style : '',
+      memory: typeof member.memory === 'string' ? member.memory : '',
       core: member.core ?? '',
       extended: member.extended ?? '',
     })),
@@ -839,10 +869,12 @@ async function readMember(groupDir, memberId) {
       name: '未知成员',
       avatar: null,
       public: { oneLiner: '', relations: {} },
+      privateRelations: {},
       extendedEnabled: false,
       style: '',
       model: null,
       core: '',
+      memory: '',
       extended: '',
       missing: true,
     };
@@ -851,6 +883,7 @@ async function readMember(groupDir, memberId) {
   const card = await readJson(path.join(dir, 'card.json'));
   const core = await readText(path.join(dir, 'setting', 'core.md'));
   const extended = await readText(path.join(dir, 'setting', 'extended.md'));
+  const memory = await readText(path.join(dir, 'setting', 'memory.md'));
   if (card === null) {
     return {
       schemaVersion: SCHEMA_VERSION,
@@ -858,11 +891,13 @@ async function readMember(groupDir, memberId) {
       name: '未知成员',
       avatar: null,
       public: { oneLiner: '', relations: {} },
+      privateRelations: {},
       extendedEnabled: false,
       style: '',
       model: null,
       core,
       extended,
+      memory: '',
       missing: true,
     };
   }
@@ -875,11 +910,13 @@ async function readMember(groupDir, memberId) {
       oneLiner: typeof card.public?.oneLiner === 'string' ? card.public.oneLiner : '',
       relations: typeof card.public?.relations === 'object' && card.public.relations !== null ? card.public.relations : {},
     },
+    privateRelations: typeof card.privateRelations === 'object' && card.privateRelations !== null ? card.privateRelations : {},
     extendedEnabled: card.extendedEnabled === true,
     style: typeof card.style === 'string' ? card.style : '',
     model: normalizeModel(card.model),
     core,
     extended,
+    memory,
     missing: false,
   };
 }

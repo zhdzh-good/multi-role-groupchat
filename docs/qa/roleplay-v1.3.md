@@ -27,16 +27,17 @@ tail（每个成员 / 每轮变化）
   说话方式（可选，style）
   你与在场者的关系
   你最近说过
-  只有你知道（memory，预留）
-  你私下的关系（privateRelations，预留）
+  只有你知道（memory）
+  你私下的关系（privateRelations）
   本场状态
   本轮任务（addressed / bystander / handoff）
   角色提醒
 ```
 
-`style` 已接入成员卡、管理页和群/角色卡导入导出；`memory` 与 `privateRelations`
-目前是 prompt 接口预留，**还没有持久化/编辑 UI**。这是 TODO 2.3 的下一步，不应在
-评测报告里声称已经完成私有记忆。
+`style`、`memory` 与 `privateRelations` 已接入成员卡、管理页和群/角色卡导入导出；
+`memory` 写入 `setting/memory.md`，`privateRelations` 写入 `card.json`。
+私有字段只进入本人 prompt；system 前缀、路由器和其他成员的 tail 都有隔离测试。
+导出默认不含私有字段，只有显式勾选才写入 `.private.` 文件。
 
 ## 真实模型怎么跑
 
@@ -70,5 +71,5 @@ GROUPCHAT_QA_API_KEY=... node qa/roleplay/run.mjs \
 
 1. 有 key 后先跑 `deepseek-chat` 基线，再跑第二个模型，记录角色感、相关性、延迟、token。
 2. 如果“没干透/欠人情/账本”这类秘密被泄露，优先改 tail 的角色提醒，不要堆全局规则。
-3. 如果长对话漂移明显，再接 `memory`/`privateRelations` 的持久化和编辑 UI。
+3. 如果长对话漂移明显，下一步应让 `memory` 的维护更省力（例如手动摘要模板），而不是让它进入共享 prompt。
 4. 人工评分至少两人各评一遍，报告保留原始输出，避免只留平均分。

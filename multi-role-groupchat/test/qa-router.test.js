@@ -100,12 +100,16 @@ test('the router prompt never carries private cores and stays parseable under fe
     members: entry.members.map((member, index) => ({
       ...member,
       core: `秘密${index}：不要告诉别人`,
+      memory: `私有记忆${index}：不能进入路由器`,
+      privateRelations: { c_1: `私人关系${index}：不能进入路由器` },
     })),
     activeMessages: entry.activeMessages,
     userText: entry.text,
   });
   assert.match(prompt.system, /id=c_0/);
   assert.doesNotMatch(prompt.system, /秘密0/);
+  assert.doesNotMatch(prompt.system, /私有记忆0/);
+  assert.doesNotMatch(prompt.system, /私人关系0/);
   const parsed = parseRouteResponse(
     '说明\n```json\n{"targets":["c_1","c_1","c_404"],"reason":"ok","confidence":2}\n```\n结束',
     entry.members,

@@ -118,6 +118,8 @@ node qa/router/run.mjs --mode hybrid --strict \
 ## 约束
 
 - 不把真实聊天记录或真实秘密放进 fixture；全部使用合成场景
+- 私有记忆 / 私人关系默认不导出；测试 fixture 只使用合成字符串
+- 导出的 `.private.*.json` 和运行时 `setting/memory.md` 已加入 `.gitignore`
 - 不在 CI 里跑真实模型；CI 只跑 `npm test`
 - 报告里的 key、provider 原始错误会被截断；不要把 `.env` 提交
 - 模型评测结果受 provider、模型版本、温度影响，报告必须带模型名与日期

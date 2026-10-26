@@ -537,6 +537,15 @@ color-scheme:dark;
       'members.styleCount': '{n} / 300',
       'members.relations': '公开关系',
       'members.relationWith': '与 {name}',
+      'members.privateRelations': '私人关系（只给本人看）',
+      'members.privateRelationWith': '与 {name}',
+      'members.privateRelationsHint': '只进入该成员的 prompt；不写进群简介、system 前缀、路由器或导出文件（除非导出时勾选包含私有）。',
+      'members.memory': '私有记忆（只给本人看）',
+      'members.memoryHint': '手动维护的长期记忆，例如“阿明最近失业，我不想点破”。只在该成员的 prompt 尾部出现。',
+      'members.memoryPlaceholder': '例如：阿明最近失业了，但我不想点破。',
+      'members.memoryCount': '{n} / 4000',
+      'members.privateExport': '导出时包含私有记忆',
+      'members.privateExportHint': '默认关闭；开启后导出的成员卡会含私有内容，请妥善保管。',
       'members.core': '核心设定（每轮注入）',
       'members.extended': '扩展设定（可选）',
       'members.extendedEnabled': '启用扩展设定（仅开启时注入）',
@@ -564,6 +573,8 @@ color-scheme:dark;
       'portable.hint': '导出 JSON 备份，或从备份导入为一个新群；不包含消息记录、钉住和导出历史。',
       'portable.importOnlyHint': '选择之前导出的 JSON 群配置，预览后导入为一个新群。',
       'portable.includeAvatars': '包含头像',
+      'portable.includePrivate': '包含私有记忆与私人关系',
+      'portable.privateNote': '默认不导出。勾选后文件会包含成员的私有记忆和私人关系，请勿分享给他人。',
       'portable.avatarNote': '头像会让文件变大；关闭后仍保留名字、设定和关系。',
       'portable.exportGroup': '导出群配置',
       'portable.exporting': '导出中…',
@@ -761,6 +772,15 @@ color-scheme:dark;
       'members.styleCount': '{n} / 300',
       'members.relations': 'Public relationships',
       'members.relationWith': 'With {name}',
+      'members.privateRelations': 'Private relationships (only this member sees them)',
+      'members.privateRelationWith': 'With {name}',
+      'members.privateRelationsHint': 'Only this member\'s prompt sees these; they never enter the group brief, system prefix, router, or exports unless “include private” is checked.',
+      'members.memory': 'Private memory (only this member sees it)',
+      'members.memoryHint': 'Manually curated long-term memory, e.g. “阿明 lost his job recently, but I will not bring it up.” Injected only into this member\'s tail.',
+      'members.memoryPlaceholder': 'e.g. 阿明 lost his job recently, but I will not bring it up.',
+      'members.memoryCount': '{n} / 4,000',
+      'members.privateExport': 'Include private memory when exporting',
+      'members.privateExportHint': 'Off by default; turning it on puts private content in the member card file, so store it safely.',
       'members.core': 'Core setting (injected every turn)',
       'members.extended': 'Extended setting (optional)',
       'members.extendedEnabled': 'Include the extended setting (only while enabled)',
@@ -788,6 +808,8 @@ color-scheme:dark;
       'portable.hint': 'Export a JSON backup, or import one as a new group. Messages, pins, and export history are not included.',
       'portable.importOnlyHint': 'Choose a previously exported JSON group config, preview it, then import it as a new group.',
       'portable.includeAvatars': 'Include avatars',
+      'portable.includePrivate': 'Include private memory and relationships',
+      'portable.privateNote': 'Off by default. When enabled, the file contains private memory and private relationships; do not share it.',
       'portable.avatarNote': 'Avatars make the file larger; names, settings, and relations remain without them.',
       'portable.exportGroup': 'Export group config',
       'portable.exporting': 'Exporting…',
@@ -2853,6 +2875,9 @@ color-scheme:dark;
       const [oneLiner, setOneLiner] = useState(member?.public?.oneLiner ?? '');
       const [style, setStyle] = useState(member?.style ?? '');
       const [relations, setRelations] = useState(() => ({ ...(member?.public?.relations ?? {}) }));
+      const [privateRelations, setPrivateRelations] = useState(() => ({ ...(member?.privateRelations ?? {}) }));
+      const [memory, setMemory] = useState(member?.memory ?? '');
+      const [includePrivateExport, setIncludePrivateExport] = useState(false);
       const [core, setCore] = useState(member?.core ?? '');
       const [extended, setExtended] = useState(member?.extended ?? '');
       const [extendedEnabled, setExtendedEnabled] = useState(member?.extendedEnabled === true);
@@ -2871,12 +2896,18 @@ color-scheme:dark;
       const coreLength = [...core].length;
       const extendedLength = [...extended].length;
       const styleLength = [...style].length;
+      const memoryLength = [...memory].length;
       const exportCard = async () => {
         if (member === null) return;
         setCardBusy(true);
         setCardMessage(null);
         try {
-          const result = await store.exportPortable({ scope: 'member', memberId: member.id, includeAvatars: true });
+          const result = await store.exportPortable({
+            scope: 'member',
+            memberId: member.id,
+            includeAvatars: true,
+            includePrivate: includePrivateExport,
+          });
           downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
           setCardMessage({ level: 'success', text: t('portable.characterExported') });
         } catch (reason) {
@@ -2904,6 +2935,8 @@ color-scheme:dark;
           setOneLiner(fields.oneLiner ?? '');
           setStyle(fields.style ?? '');
           setRelations({ ...(fields.relations ?? {}) });
+          setPrivateRelations({ ...(fields.privateRelations ?? {}) });
+          setMemory(fields.memory ?? '');
           setCore(fields.core ?? '');
           setExtended(fields.extended ?? '');
           setExtendedEnabled(fields.extendedEnabled === true);
@@ -2940,6 +2973,8 @@ color-scheme:dark;
             oneLiner,
             style,
             relations,
+            privateRelations,
+            memory,
             core,
             extended,
             extendedEnabled,
@@ -2979,6 +3014,23 @@ color-scheme:dark;
           style: { display: 'none' },
           onChange: importCard,
         }),
+        member === null
+          ? null
+          : h(
+              'div',
+              { style: { marginBottom: '10px' } },
+              h(
+                'label',
+                { className: 'mgc-check' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: includePrivateExport,
+                  onChange: (event) => setIncludePrivateExport(event.target.checked),
+                }),
+                t('members.privateExport'),
+              ),
+              h('div', { className: 'mgc-hint' }, t('members.privateExportHint')),
+            ),
         h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.characterHint')),
         cardMessage === null
           ? null
@@ -3084,6 +3136,28 @@ color-scheme:dark;
               ),
             )
           : null,
+        others.length > 0
+          ? h(
+              'div',
+              { className: 'mgc-field' },
+              h('div', { className: 'mgc-label' }, t('members.privateRelations')),
+              others.map((other) =>
+                h(
+                  'div',
+                  { key: other.id, style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' } },
+                  h('span', { className: 'mgc-hint', style: { width: '96px', flex: 'none' } }, t('members.privateRelationWith', { name: other.name })),
+                  h('input', {
+                    className: 'mgc-input',
+                    value: privateRelations[other.id] ?? '',
+                    maxLength: 200,
+                    onChange: (event) => setPrivateRelations((current) => ({ ...current, [other.id]: event.target.value })),
+                    placeholder: t('common.none'),
+                  }),
+                ),
+              ),
+              h('div', { className: 'mgc-hint' }, t('members.privateRelationsHint')),
+            )
+          : null,
         h(
           'div',
           { className: 'mgc-field' },
@@ -3111,6 +3185,21 @@ color-scheme:dark;
             }),
             t('members.extendedEnabled'),
           ),
+        ),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: 'mgc-member-memory' }, t('members.memory')),
+          h('textarea', {
+            id: 'mgc-member-memory',
+            className: 'mgc-textarea2',
+            value: memory,
+            maxLength: 4000,
+            onChange: (event) => setMemory(event.target.value),
+            placeholder: t('members.memoryPlaceholder'),
+          }),
+          h('div', { className: 'mgc-hint' }, t('members.memoryCount', { n: memoryLength })),
+          h('div', { className: 'mgc-hint' }, t('members.memoryHint')),
         ),
         h(
           'div',
@@ -3586,6 +3675,7 @@ color-scheme:dark;
      */
     function PortableGroupPanel({ state, t, store }) {
       const [includeAvatars, setIncludeAvatars] = useState(true);
+      const [includePrivate, setIncludePrivate] = useState(false);
       const [busy, setBusy] = useState(false);
       const [error, setError] = useState(null);
       const [notice, setNotice] = useState(null);
@@ -3596,7 +3686,7 @@ color-scheme:dark;
         setError(null);
         setNotice(null);
         try {
-          const result = await store.exportPortable({ scope: 'group', includeAvatars });
+          const result = await store.exportPortable({ scope: 'group', includeAvatars, includePrivate });
           downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
           setNotice(t('portable.groupExported'));
         } catch (reason) {
@@ -3622,6 +3712,17 @@ color-scheme:dark;
           t('portable.includeAvatars'),
         ),
         h('div', { className: 'mgc-hint', style: { marginBottom: '12px' } }, t('portable.avatarNote')),
+        h(
+          'label',
+          { className: 'mgc-check', style: { marginBottom: '8px' } },
+          h('input', {
+            type: 'checkbox',
+            checked: includePrivate,
+            onChange: (event) => setIncludePrivate(event.target.checked),
+          }),
+          t('portable.includePrivate'),
+        ),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '12px' } }, t('portable.privateNote')),
         h(
           'div',
           { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '10px' } },

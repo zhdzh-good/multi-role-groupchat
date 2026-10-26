@@ -29,6 +29,8 @@ const members = [
     avatar: PNG,
     public: { oneLiner: '书店店主', relations: { c_zhou: '旧识' } },
     style: '句子短，叫阿明“你”。',
+    memory: '阿明最近失业了，但我不想点破。',
+    privateRelations: { c_zhou: '我其实还没完全信任他。' },
     core: '店主，话少。',
     extended: '在这里长大。',
     extendedEnabled: true,
@@ -70,6 +72,8 @@ test('group bundles omit local ids and key relations by display name', () => {
   assert.deepEqual(bundle.group.owner.relations, { 林晚: '熟客' });
   assert.deepEqual(bundle.members[0].relations, { 周野: '旧识' });
   assert.equal(bundle.members[0].style, '句子短，叫阿明“你”。');
+  assert.equal('memory' in bundle.members[0], false);
+  assert.equal('privateRelations' in bundle.members[0], false);
   assert.equal(bundle.members[0].avatar, PNG);
   assert.equal(JSON.stringify(bundle).includes('c_lin'), false);
   assert.equal(JSON.stringify(bundle).includes('c_zhou'), false);
@@ -102,6 +106,8 @@ test('group import normalization preserves policy, relations, and warnings', () 
   assert.equal(preview.memberCount, 2);
   assert.equal(preview.members[0].relationCount, 1);
   assert.equal(preview.members[0].styleChars, 11);
+  assert.equal(preview.members[0].privateMemoryChars, 0);
+  assert.equal(preview.members[0].privateRelationCount, 0);
   assert.equal(preview.bytes, 1234);
 });
 
@@ -120,11 +126,33 @@ test('parsePortable classifies bundles, character cards, and legacy files', () =
   assert.equal(card.format, CHARACTER_FORMAT);
   assert.deepEqual(card.character.relations, { 周野: '旧识' });
   assert.equal(card.character.style, '句子短，叫阿明“你”。');
+  assert.equal('memory' in card.character, false);
+  assert.equal('privateRelations' in card.character, false);
   assert.equal(parsePortable(card, 'character').kind, 'character');
 
   assert.throws(() => parsePortable('not json'), PortableError);
   assert.throws(() => parsePortable({ ...bundle, version: 2 }, 'group'), /高于当前支持/);
   assert.throws(() => parsePortable(card, 'group'), /角色卡，不是群配置/);
+});
+
+test('private memory and relations are opt-in and round-trip by display name', () => {
+  const bundle = buildGroupBundle({ group, members, includePrivate: true });
+  assert.equal(bundle.members[0].memory, '阿明最近失业了，但我不想点破。');
+  assert.deepEqual(bundle.members[0].privateRelations, { 周野: '我其实还没完全信任他。' });
+  const normalized = normalizeGroupBundle(bundle);
+  assert.equal(normalized.members[0].memory, '阿明最近失业了，但我不想点破。');
+  assert.equal(normalized.members[0].privateRelations.周野, '我其实还没完全信任他。');
+  const preview = previewGroupBundle(normalized);
+  assert.equal(preview.members[0].privateMemoryChars, 15);
+  assert.equal(preview.members[0].privateRelationCount, 1);
+
+  const card = buildCharacterCard({ kind: 'member', profile: members[0], members, includePrivate: true });
+  assert.equal(card.character.memory, '阿明最近失业了，但我不想点破。');
+  assert.deepEqual(card.character.privateRelations, { 周野: '我其实还没完全信任他。' });
+  const cardNormalized = normalizeCharacterCard(card, 'member');
+  const mapped = mapCharacterRelations(cardNormalized.character, members, { kind: 'member', selfId: 'c_lin' });
+  assert.deepEqual(mapped.privateRelations, { c_zhou: '我其实还没完全信任他。' });
+  assert.deepEqual(mapped.warnings, []);
 });
 
 test('group validation rejects unsafe names and oversized fields', () => {
@@ -161,6 +189,7 @@ test('character cards validate kind and map relation names onto ids', () => {
   const memberNormalized = normalizeCharacterCard(memberCard, 'member');
   const mapped = mapCharacterRelations(memberNormalized.character, members, { kind: 'member', selfId: 'c_lin' });
   assert.deepEqual(mapped.relations, { c_zhou: '旧识' });
+  assert.deepEqual(mapped.privateRelations, {});
   const withUnknown = mapCharacterRelations(
     { ...memberNormalized.character, relations: { 周野: '旧识', 无名: '不存在' } },
     members,
@@ -185,6 +214,7 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
       name: member.name,
       oneLiner: member.public.oneLiner,
       style: member.style,
+      memory: member.memory,
       core: member.core,
     })),
     policy: group.policy,
@@ -198,6 +228,8 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
     avatar: PNG,
     relations: { [source.members[1].id]: '旧识' },
     style: '句子短，叫阿明“你”。',
+    memory: '阿明最近失业了，但我不想点破。',
+    privateRelations: { [source.members[1].id]: '我其实还没完全信任他。' },
     core: '店主，话少。',
     extended: '在这里长大。',
     extendedEnabled: true,
@@ -207,7 +239,7 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
     owner: { ...group.owner, relations: { [source.members[0].id]: '熟客' } },
   });
   const sourceLive = await store.load(source.gid);
-  const bundle = buildGroupBundle({ group: sourceLive.group, members: sourceLive.members });
+  const bundle = buildGroupBundle({ group: sourceLive.group, members: sourceLive.members, includePrivate: true });
   const imported = await store.importGroup(normalizeGroupBundle(bundle));
 
   assert.notEqual(imported.gid, source.gid);
@@ -221,6 +253,8 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
   assert.equal(imported.members[0].avatar, PNG);
   assert.equal(imported.members[0].extended, '在这里长大。');
   assert.equal(imported.members[0].style, '句子短，叫阿明“你”。');
+  assert.equal(imported.members[0].memory, '阿明最近失业了，但我不想点破。');
+  assert.equal(imported.members[0].privateRelations[imported.members[1].id], '我其实还没完全信任他。');
   assert.equal(imported.members[0].extendedEnabled, true);
   assert.equal((await store.listGroups()).length, 2);
 });
