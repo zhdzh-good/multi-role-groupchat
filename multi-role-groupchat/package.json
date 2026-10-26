@@ -38,7 +38,7 @@
     }
   },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "qa:router": "node qa/router/run.mjs --mode local --out qa/reports/router-local.md",
     "qa:router:hybrid": "node qa/router/run.mjs --mode hybrid",
     "qa:router:model": "node qa/router/run.mjs --mode model",
