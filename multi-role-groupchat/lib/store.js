@@ -40,6 +40,9 @@ const SCHEMA_VERSION = 1;
 /** Largest accepted single setting file; the plan warns well below this. */
 const MAX_SETTING_CHARS = 20000;
 
+/** Optional voice/style note injected only for the speaking member. */
+const MAX_STYLE_CHARS = 300;
+
 /**
  * The plugin's data directory. `DSH_HOME` is set by a profile-launched
  * Harness; the fallback keeps a bare `dsh` launch working.
@@ -238,6 +241,7 @@ export class GroupStore {
           relations: {},
         },
         extendedEnabled: false,
+        style: typeof draft.style === 'string' ? draft.style.trim().slice(0, MAX_STYLE_CHARS) : '',
         model: null,
       };
       seen.push({ id, name: validation.name });
@@ -290,6 +294,7 @@ export class GroupStore {
       name: member.name,
       oneLiner: member.oneLiner,
       core: member.core,
+      style: member.style ?? '',
     }));
     const live = await this.createGroup({
       name: input.name,
@@ -315,6 +320,7 @@ export class GroupStore {
           oneLiner: member.oneLiner,
           avatar: member.avatar,
           relations: mapRelationNames(member.relations, byName, member.name),
+          style: member.style ?? '',
           core: member.core,
           extended: member.extended,
           extendedEnabled: member.extendedEnabled,
@@ -429,6 +435,8 @@ export class GroupStore {
         relations[otherId] = text.trim();
       }
     }
+    const style = typeof input?.style === 'string' ? input.style.trim() : existing?.style ?? '';
+    if ([...style].length > MAX_STYLE_CHARS) throw new GroupChatError(`说话方式最多 ${MAX_STYLE_CHARS} 个字符。`);
     const core = typeof input?.core === 'string' ? input.core : existing?.core ?? '';
     const extended = typeof input?.extended === 'string' ? input.extended : existing?.extended ?? '';
     if ([...core].length > MAX_SETTING_CHARS) throw new GroupChatError(`核心设定最多 ${MAX_SETTING_CHARS} 个字符。`);
@@ -440,6 +448,7 @@ export class GroupStore {
       name: validation.name,
       avatar: typeof input?.avatar === 'string' ? input.avatar : existing?.avatar ?? null,
       public: { oneLiner, relations },
+      style,
       extendedEnabled: input?.extendedEnabled === undefined
         ? existing?.extendedEnabled === true
         : input.extendedEnabled === true,
@@ -693,6 +702,7 @@ export function buildStateView(live, turn) {
       public: member.public ?? { oneLiner: '', relations: {} },
       extendedEnabled: member.extendedEnabled === true,
       model: member.model ?? null,
+      style: typeof member.style === 'string' ? member.style : '',
       core: member.core ?? '',
       extended: member.extended ?? '',
     })),
@@ -830,6 +840,7 @@ async function readMember(groupDir, memberId) {
       avatar: null,
       public: { oneLiner: '', relations: {} },
       extendedEnabled: false,
+      style: '',
       model: null,
       core: '',
       extended: '',
@@ -848,6 +859,7 @@ async function readMember(groupDir, memberId) {
       avatar: null,
       public: { oneLiner: '', relations: {} },
       extendedEnabled: false,
+      style: '',
       model: null,
       core,
       extended,
@@ -864,6 +876,7 @@ async function readMember(groupDir, memberId) {
       relations: typeof card.public?.relations === 'object' && card.public.relations !== null ? card.public.relations : {},
     },
     extendedEnabled: card.extendedEnabled === true,
+    style: typeof card.style === 'string' ? card.style : '',
     model: normalizeModel(card.model),
     core,
     extended,

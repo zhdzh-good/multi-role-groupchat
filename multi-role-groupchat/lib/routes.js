@@ -598,6 +598,7 @@ async function handlePortableCharacterPreview(store, request) {
     : {
         name: normalized.character.name,
         oneLiner: normalized.character.oneLiner,
+        style: normalized.character.style,
         core: normalized.character.core,
         extended: normalized.character.extended,
         extendedEnabled: normalized.character.extendedEnabled,

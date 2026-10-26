@@ -39,18 +39,20 @@
 
 - 智能路由：没有 `@` 时也能判断对谁说；目标必答，其余成员按概率接话
 - 角色卡 / 群配置 JSON 导入导出：关系按名字迁移，头像可选，导入前预览
+- 可重复 QA：86 条路由样本、25 个角色场景、概率扫描；真实模型运行需显式 key
 - 我的角色档案（默认名「用户」，可改名）、群聊面板、成员设定、群级/成员级模型覆盖
 - `@` 路由、显式接话链、`@角色名` 交还控制（旧 `@群主` 兼容）、接话跳数上限
 - 智能路由开关、概率接话、最多目标数等群级设置
 - 钉住、折叠早期消息、重写最新一条、token 预算、Markdown 导出
 - 删除群聊（输入群名确认，永久移除该群数据）
 - 头像设置、追加式事件日志、重启恢复
-- 67 项确定性测试，含随机稳定性压测
+- 90 项确定性测试，含随机稳定性压测与 QA fixture
 
 ## 仓库结构
 
 ```text
-multi-role-groupchat/   插件本体（package.json、Host/Client、测试）
+multi-role-groupchat/   插件本体（package.json、Host/Client、测试、qa/）
+docs/qa/                路由与角色评测报告
 多角色互聊插件-计划书-1.0.md   设计文档
 LICENSE                MIT
 ```
@@ -89,7 +91,20 @@ node --check client.js
 ```
 
 详细的协议、数据格式、稳定性测试与已知限制见
-[插件 README](./multi-role-groupchat/README.md)。
+[插件 README](./multi-role-groupchat/README.md)。路由评测见
+[docs/qa/router-v1.3.md](./docs/qa/router-v1.3.md)。
+
+## QA
+
+```bash
+cd multi-role-groupchat
+npm run qa:router          # 本地规则，免费
+npm run qa:roleplay:dry    # 只构建 prompt，免费
+npm run qa:sweep           # 接话概率扫描
+```
+
+真实模型评测需要 `GROUPCHAT_QA_API_KEY`，不会进 CI。当前本地基线：67/67 确定性样本全绿，
+整体 top-1 96.5%、micro F1 0.958；25 个角色场景的 system 前缀稳定且不含秘密。
 
 ## Roadmap
 

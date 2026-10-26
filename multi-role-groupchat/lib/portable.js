@@ -36,6 +36,9 @@ const MAX_SETTING_CHARS = 20000;
 /** Largest accepted one-line profile. */
 const MAX_ONE_LINER_CHARS = 400;
 
+/** Largest accepted voice/style note. */
+const MAX_STYLE_CHARS = 300;
+
 /** Largest accepted single relation description. */
 const MAX_RELATION_CHARS = 200;
 
@@ -93,6 +96,7 @@ export function buildGroupBundle({ group, members, includeAvatars = true, export
     members: members.map((member) => ({
       name: member.name,
       oneLiner: member.public?.oneLiner ?? '',
+      style: member.style ?? '',
       core: member.core ?? '',
       extended: member.extended ?? '',
       extendedEnabled: member.extendedEnabled === true,
@@ -132,6 +136,7 @@ export function buildCharacterCard({ kind, profile, members, includeAvatar = tru
     : {
         name: profile.name,
         oneLiner: profile.public?.oneLiner ?? '',
+        style: profile.style ?? '',
         core: profile.core ?? '',
         extended: profile.extended ?? '',
         extendedEnabled: profile.extendedEnabled === true,
@@ -264,7 +269,7 @@ export function normalizeGroupBundle(value) {
 
   const members = entries.map(({ name: memberName, raw }) => {
     const displayed = `成员“${memberName}”`;
-    warnUnknown(raw, ['name', 'oneLiner', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'], displayed, warnings);
+    warnUnknown(raw, ['name', 'oneLiner', 'style', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'], displayed, warnings);
     const model = normalizeModel(raw.model);
     if (raw.model !== null && raw.model !== undefined && model === null) {
       warnings.push(`${displayed}的模型覆盖无法识别，已忽略。`);
@@ -272,6 +277,7 @@ export function normalizeGroupBundle(value) {
     return {
       name: memberName,
       oneLiner: stringField(raw.oneLiner, `${displayed}一句话`, MAX_ONE_LINER_CHARS),
+      style: stringField(raw.style, `${displayed}说话方式`, MAX_STYLE_CHARS),
       core: stringField(raw.core, `${displayed}核心设定`, MAX_SETTING_CHARS),
       extended: stringField(raw.extended, `${displayed}扩展设定`, MAX_SETTING_CHARS),
       extendedEnabled: raw.extendedEnabled === true,
@@ -332,7 +338,7 @@ export function normalizeCharacterCard(value, expectedKind = null) {
     raw,
     kind === 'owner'
       ? ['name', 'oneLiner', 'setting', 'avatar', 'relations']
-      : ['name', 'oneLiner', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'],
+      : ['name', 'oneLiner', 'style', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'],
     kind === 'owner' ? '我的角色' : '成员卡',
     warnings,
   );
@@ -364,6 +370,7 @@ export function normalizeCharacterCard(value, expectedKind = null) {
     character = {
       name,
       oneLiner: stringField(raw.oneLiner, '成员一句话', MAX_ONE_LINER_CHARS),
+      style: stringField(raw.style, '成员说话方式', MAX_STYLE_CHARS),
       core: stringField(raw.core, '核心设定', MAX_SETTING_CHARS),
       extended: stringField(raw.extended, '扩展设定', MAX_SETTING_CHARS),
       extendedEnabled: raw.extendedEnabled === true,
@@ -422,6 +429,7 @@ export function previewGroupBundle(bundle, meta = {}) {
     members: bundle.members.map((member) => ({
       name: member.name,
       oneLiner: member.oneLiner,
+      styleChars: [...member.style].length,
       coreChars: [...member.core].length,
       extendedChars: [...member.extended].length,
       hasAvatar: member.avatar !== null,

@@ -28,6 +28,7 @@ const members = [
     name: '林晚',
     avatar: PNG,
     public: { oneLiner: '书店店主', relations: { c_zhou: '旧识' } },
+    style: '句子短，叫阿明“你”。',
     core: '店主，话少。',
     extended: '在这里长大。',
     extendedEnabled: true,
@@ -68,6 +69,7 @@ test('group bundles omit local ids and key relations by display name', () => {
   assert.equal(bundle.group.owner.name, '阿明');
   assert.deepEqual(bundle.group.owner.relations, { 林晚: '熟客' });
   assert.deepEqual(bundle.members[0].relations, { 周野: '旧识' });
+  assert.equal(bundle.members[0].style, '句子短，叫阿明“你”。');
   assert.equal(bundle.members[0].avatar, PNG);
   assert.equal(JSON.stringify(bundle).includes('c_lin'), false);
   assert.equal(JSON.stringify(bundle).includes('c_zhou'), false);
@@ -90,6 +92,7 @@ test('group import normalization preserves policy, relations, and warnings', () 
   assert.equal(normalized.owner.relations.林晚, '熟客');
   assert.deepEqual(normalized.owner.relations, { 林晚: '熟客' });
   assert.equal(normalized.members[0].relations.周野, '旧识');
+  assert.equal(normalized.members[0].style, '句子短，叫阿明“你”。');
   assert.equal(normalized.members[0].avatar, null);
   assert.ok(normalized.warnings.some((warning) => warning.includes('不在群内')));
   assert.ok(normalized.warnings.some((warning) => warning.includes('头像')));
@@ -98,6 +101,7 @@ test('group import normalization preserves policy, relations, and warnings', () 
   assert.equal(preview.groupName, '旧城书店');
   assert.equal(preview.memberCount, 2);
   assert.equal(preview.members[0].relationCount, 1);
+  assert.equal(preview.members[0].styleChars, 11);
   assert.equal(preview.bytes, 1234);
 });
 
@@ -115,6 +119,7 @@ test('parsePortable classifies bundles, character cards, and legacy files', () =
   const card = buildCharacterCard({ kind: 'member', profile: members[0], members });
   assert.equal(card.format, CHARACTER_FORMAT);
   assert.deepEqual(card.character.relations, { 周野: '旧识' });
+  assert.equal(card.character.style, '句子短，叫阿明“你”。');
   assert.equal(parsePortable(card, 'character').kind, 'character');
 
   assert.throws(() => parsePortable('not json'), PortableError);
@@ -179,6 +184,7 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
     members: members.map((member) => ({
       name: member.name,
       oneLiner: member.public.oneLiner,
+      style: member.style,
       core: member.core,
     })),
     policy: group.policy,
@@ -191,6 +197,7 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
     oneLiner: '书店店主',
     avatar: PNG,
     relations: { [source.members[1].id]: '旧识' },
+    style: '句子短，叫阿明“你”。',
     core: '店主，话少。',
     extended: '在这里长大。',
     extendedEnabled: true,
@@ -213,6 +220,7 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
   assert.equal(imported.group.owner.relations[imported.members[0].id], '熟客');
   assert.equal(imported.members[0].avatar, PNG);
   assert.equal(imported.members[0].extended, '在这里长大。');
+  assert.equal(imported.members[0].style, '句子短，叫阿明“你”。');
   assert.equal(imported.members[0].extendedEnabled, true);
   assert.equal((await store.listGroups()).length, 2);
 });

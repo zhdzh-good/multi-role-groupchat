@@ -278,17 +278,60 @@ export function buildPrompt(input) {
     role: 'user',
     content: [{ type: 'text', text: historyLine(message, members, owner.name) }],
   }));
+
+  // The system prefix stays byte-identical across turns so providers can cache
+  // it. Everything that changes per member/turn lives in this final tail:
+  // character core -> private context -> recent voice -> scene -> task.
   const tail = [
     `=== 你现在扮演：${member.name} ===`,
+    '=== 角色核心 ===',
     trimToFallback(member.core, '（未填写核心设定，请按公开档案扮演）'),
   ];
   if (member.extendedEnabled === true && typeof member.extended === 'string' && member.extended.trim().length > 0) {
     tail.push('=== 扩展背景 ===', member.extended.trim());
   }
+  const style = typeof member.style === 'string' ? member.style.trim() : '';
+  if (style.length > 0) tail.push('=== 说话方式 ===', style);
+
+  const relationLines = Object.entries(member.public?.relations ?? {})
+    .map(([otherId, text]) => {
+      const other = members.find((candidate) => candidate.id === otherId);
+      if (other === undefined || typeof text !== 'string' || text.trim().length === 0) return null;
+      return `- ${other.name}：${text.trim()}`;
+    })
+    .filter((line) => line !== null);
+  if (relationLines.length > 0) {
+    tail.push('=== 你与在场者的关系 ===', ...relationLines);
+  }
+
+  const ownRecent = input.activeMessages
+    .filter((message) => message.id !== excludeId && message.role === 'member' && message.memberId === member.id)
+    .slice(-2)
+    .map((message) => `- ${message.text}`);
+  if (ownRecent.length > 0) {
+    tail.push('=== 你最近说过 ===', ...ownRecent);
+  }
+
+  const memory = typeof member.memory === 'string' ? member.memory.trim() : '';
+  if (memory.length > 0) {
+    tail.push('=== 只有你知道 ===', memory);
+  }
+  const privateRelationLines = Object.entries(member.privateRelations ?? {})
+    .map(([otherId, text]) => {
+      const other = members.find((candidate) => candidate.id === otherId);
+      if (other === undefined || typeof text !== 'string' || text.trim().length === 0) return null;
+      return `- ${other.name}：${text.trim()}`;
+    })
+    .filter((line) => line !== null);
+  if (privateRelationLines.length > 0) {
+    tail.push('=== 你私下的关系 ===', ...privateRelationLines);
+  }
+
   tail.push(
-    '=== 本次回应 ===',
+    '=== 本场状态 ===',
     `${owner.name}刚说：${sourceUserText}`,
     `这是本次发言的第 ${replyIndex} 条回应；上一条来自 ${previousName}。`,
+    '=== 本轮任务 ===',
   );
   if (routeRole === 'addressed') {
     tail.push('这句话主要是对你说的；先直接回应，不要替别人回答。');
@@ -297,7 +340,12 @@ export function buildPrompt(input) {
   } else if (routeRole === 'handoff') {
     tail.push('上一条把话交给了你；顺着接下去。');
   }
-  tail.push(`直接回应，或用 @名字 把话交给别人；@${owner.name} 表示等对方回答。`);
+  tail.push(
+    `直接回应，或用 @名字 把话交给别人；@${owner.name} 表示等对方回答。`,
+    '=== 角色提醒 ===',
+    `保持${member.name}的称呼、语气和立场，沿用“你最近说过”的说话方式；不要用别人的口吻说话，不要解释规则，不要主动说出秘密。`,
+  );
+
   messages.push({ role: 'user', content: [{ type: 'text', text: tail.join('\n\n') }] });
   return { system: buildSystemPrefix(group, members), messages, folded: selection.folded };
 }

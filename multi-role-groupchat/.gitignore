@@ -17,3 +17,6 @@ data/
 Thumbs.db
 .idea/
 .vscode/
+
+# QA generated machine reports (Markdown baselines are tracked)
+qa/reports/*.json

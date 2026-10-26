@@ -139,7 +139,9 @@ export function explicitRoute(text, members, ownerName) {
   const reasons = [];
   if (targets.length > 0) reasons.push('mention');
 
-  if (/(你们|大家|各位|所有人|全员)/.test(body)) {
+  // “大家都在等” is narration, not address; keep the common collective
+  // forms while rejecting that one narrative shape.
+  if (/(你们|您们|各位|所有人|全员|你俩|您俩|俩位|大家(?![都也还]?在))/u.test(body)) {
     for (const member of members) {
       if (!targets.includes(member.id)) targets.push(member.id);
     }
@@ -154,11 +156,36 @@ export function explicitRoute(text, members, ownerName) {
     }
   }
 
+  const ownerDirect = targets.length === 0 && isOwnerDirect(body, ownerName);
+  if (ownerDirect) reasons.push('owner-direct');
+
   return {
     targets,
-    ownerOnly: parsed.owner && targets.length === 0,
+    ownerOnly: (parsed.owner || ownerDirect) && targets.length === 0,
     reason: reasons.length === 0 ? 'no-explicit-target' : reasons.join('+'),
   };
+}
+
+/**
+ * Whether the owner is addressed by display name without `@`, for example
+ * `阿明，你怎么看` or `阿明呢？`. Third-person mentions do not match.
+ *
+ * @param {string} text - owner message.
+ * @param {string} ownerName - owner display name.
+ * @returns {boolean} true when the owner is directly addressed.
+ */
+export function isOwnerDirect(text, ownerName) {
+  if (typeof text !== 'string' || typeof ownerName !== 'string') return false;
+  const name = ownerName.trim();
+  if (name.length === 0) return false;
+  if (text.trim() === name) return true;
+  const escaped = escapeRegExp(name);
+  const address = new RegExp(
+    `${escaped}(?=[，,：:！!？?…]|\\s*(?:你|您)|[呢吗啊吧]|\\p{Extended_Pictographic})`,
+    'u',
+  );
+  if (!address.test(text)) return false;
+  return !new RegExp(`(?:不是|别|不要|没有|没|并非)(?:问|找|叫|说|是)?\\s*${escaped}`, 'u').test(text);
 }
 
 /**
@@ -175,17 +202,44 @@ export function directNameTargets(text, members) {
   const found = [];
   for (const member of members) {
     if (typeof member?.name !== 'string' || member.name.length === 0) continue;
-    const name = escapeRegExp(member.name);
+    const rawName = member.name;
+    const name = escapeRegExp(rawName);
     const pattern = new RegExp(
-      `${name}(?=[，,：:！!？?]|\\s*(?:你|您)|[呢吗啊吧])`,
-      'u',
+      `${name}(?=[，,：:！!？?…]|\\s*(?:你|您)|[呢吗啊吧]|\\p{Extended_Pictographic})`,
+      'gu',
     );
+    for (const match of body.matchAll(pattern)) {
+      const index = match.index ?? 0;
+      if (isNegatedAddress(body, index, rawName.length)) continue;
+      if (!found.some((entry) => entry.id === member.id)) found.push({ id: member.id, index });
+    }
     const trailing = new RegExp(`(?:^|[，,、\\s])${name}$`, 'u');
-    if (pattern.test(body) || trailing.test(body) || body.trim() === member.name) {
-      found.push({ id: member.id, index: body.indexOf(member.name) });
+    if (trailing.test(body)) {
+      const index = body.lastIndexOf(rawName);
+      if (!isNegatedAddress(body, index, rawName.length) && !found.some((entry) => entry.id === member.id)) {
+        found.push({ id: member.id, index });
+      }
     }
   }
   return found.sort((left, right) => left.index - right.index).map((entry) => entry.id);
+}
+
+/**
+ * Reject a name that appears only inside a negation such as `不是问周野` or
+ * `周野，不是问你`. This keeps third-person/negated references from becoming
+ * accidental addressees without trying to parse full Chinese syntax.
+ *
+ * @param {string} body - full owner message.
+ * @param {number} index - start offset of the name.
+ * @param {number} length - name length.
+ * @returns {boolean} true when the occurrence is negated.
+ */
+function isNegatedAddress(body, index, length) {
+  const before = body.slice(0, index);
+  const after = body.slice(index + length);
+  if (/(?:不是|别|不要|没有|没|并非)(?:问|找|叫|说|是)?\s*$/u.test(before)) return true;
+  if (/^[，,]\s*(?:不是|别|不要|没有|没)(?:问|找|叫|说)?\s*(?:你|您)/u.test(after)) return true;
+  return false;
 }
 
 /**
@@ -199,7 +253,13 @@ export function isContinuationCue(text) {
   if (body.length === 0 || [...body].length > 12) return false;
   const core = body.replace(/[。！？!?…，,、\s]+$/u, '');
   if (core.length === 0) return true;
-  return /^(嗯+|哦+|啊+|好(?:的)?|行(?:吧)?|继续|接着|然后呢?|为什么|怎么说|真的吗|是吗|还有呢|往下说|展开说说|在吗)$/u.test(core);
+  if (/^(嗯+|哦+|啊+|好(?:的)?|行(?:吧)?|继续|接着|然后呢?|为什么|怎么说|真的吗|是吗|还有呢|往下说|展开说说|在吗)$/u.test(core)) {
+    return true;
+  }
+  // `好，继续` / `行，然后呢` is still one short continuation even though the
+  // comma prevents the single-token match above.
+  const compact = core.replace(/[，,、\s]+/gu, '');
+  return /^(?:好|行|嗯|哦)?(?:继续|接着|然后呢?)$/u.test(compact);
 }
 
 /**

@@ -151,6 +151,7 @@ test('members can be edited, added, and validated', async (t) => {
     memberId: first.id,
     name: '甲一',
     oneLiner: '改过了',
+    style: '句子短，叫甲“你”。',
     core: '新核心',
     extended: '新扩展',
     extendedEnabled: true,
@@ -159,8 +160,10 @@ test('members can be edited, added, and validated', async (t) => {
   });
   assert.equal(updated.name, '甲一');
   assert.equal(updated.extendedEnabled, true);
+  assert.equal(updated.style, '句子短，叫甲“你”。');
   assert.deepEqual(updated.model, { provider: 'deepseek', model: 'deepseek-chat' });
   assert.deepEqual(updated.public.relations, { [live.members[1].id]: '熟人' });
+  assert.equal((await new GroupStore(store.root).stateView(live.gid)).members[0].style, '句子短，叫甲“你”。');
 
   // Avatars are opaque strings on the Host (the browser stores a 128×128 data URL).
   const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC';
@@ -172,6 +175,10 @@ test('members can be edited, added, and validated', async (t) => {
   const withoutAvatar = await store.saveMember(live.gid, { memberId: first.id, name: '甲一', avatar: '' });
   assert.equal(withoutAvatar.avatar, '');
 
+  await assert.rejects(
+    store.saveMember(live.gid, { memberId: live.members[1].id, name: '乙', style: '长'.repeat(301) }),
+    (error) => error instanceof GroupChatError && /说话方式/.test(error.message),
+  );
   await assert.rejects(
     store.saveMember(live.gid, { memberId: live.members[1].id, name: '甲一' }),
     (error) => error instanceof GroupChatError && /重名/.test(error.message),

@@ -37,7 +37,13 @@
     }
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "qa:router": "node qa/router/run.mjs --mode local --out qa/reports/router-local.md",
+    "qa:router:hybrid": "node qa/router/run.mjs --mode hybrid",
+    "qa:router:model": "node qa/router/run.mjs --mode model",
+    "qa:roleplay": "node qa/roleplay/run.mjs",
+    "qa:roleplay:dry": "node qa/roleplay/run.mjs --dry-run --out qa/reports/roleplay-dry-run.md",
+    "qa:sweep": "node qa/router/sweep.mjs --out qa/reports/router-sweep.md"
   },
   "author": "zhdzh-good",
   "license": "MIT",

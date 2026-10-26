@@ -520,7 +520,7 @@ color-scheme:dark;
       'owner.settingHint': '建议 ≤ 4000 字；保存时不会静默截断。',
       'owner.overLimit': '超出建议长度 {n} 字：仍会保存，但会挤占上下文。',
       'owner.save': '保存角色档案',
-      'members.optionalHint': '头像、关系、扩展设定与模型覆盖是可选项，不影响新建时的基础档案。',
+      'members.optionalHint': '头像、说话方式、关系、扩展设定与模型覆盖是可选项，不影响新建时的基础档案。',
       'members.title': '成员',
       'members.add': '新增成员',
       'members.editing': '编辑 {name}',
@@ -531,6 +531,10 @@ color-scheme:dark;
       'members.avatarHint': '支持 PNG / JPEG / WebP，会裁成 128×128 存入成员卡。',
       'members.name': '显示名（@ 用，≤ 16 字符）',
       'members.oneLiner': '公开档案 · 一句话',
+      'members.style': '说话方式（可选）',
+      'members.styleHint': '只在本人 prompt 中出现；写称呼、句长、口头禅或语气，不要写秘密。',
+      'members.stylePlaceholder': '例如：句子短，少用感叹号；叫阿明“你”，叫周野“周野”。',
+      'members.styleCount': '{n} / 300',
       'members.relations': '公开关系',
       'members.relationWith': '与 {name}',
       'members.core': '核心设定（每轮注入）',
@@ -740,7 +744,7 @@ color-scheme:dark;
       'owner.settingHint': '4,000 characters or fewer recommended; saving never truncates silently.',
       'owner.overLimit': '{n} characters over the recommendation: saving still works, but context shrinks.',
       'owner.save': 'Save character profile',
-      'members.optionalHint': 'Avatar, relationships, extended settings, and model overrides are optional; they do not change the basic profile entered at creation.',
+      'members.optionalHint': 'Avatar, voice/style, relationships, extended settings, and model overrides are optional; they do not change the basic profile entered at creation.',
       'members.title': 'Members',
       'members.add': 'Add member',
       'members.editing': 'Editing {name}',
@@ -751,6 +755,10 @@ color-scheme:dark;
       'members.avatarHint': 'PNG / JPEG / WebP, center-cropped to 128×128 and stored in the member card.',
       'members.name': 'Display name (used by @, up to 16 characters)',
       'members.oneLiner': 'Public one-liner',
+      'members.style': 'Voice / speaking style (optional)',
+      'members.styleHint': 'Injected only into this member\'s prompt: address forms, sentence length, verbal habits, or tone. Do not put secrets here.',
+      'members.stylePlaceholder': 'e.g. Short sentences, few exclamation marks; calls 阿明 “你” and 周野 by name.',
+      'members.styleCount': '{n} / 300',
       'members.relations': 'Public relationships',
       'members.relationWith': 'With {name}',
       'members.core': 'Core setting (injected every turn)',
@@ -2843,6 +2851,7 @@ color-scheme:dark;
       const [name, setName] = useState(member?.name ?? '');
       const [avatar, setAvatar] = useState(member?.avatar ?? '');
       const [oneLiner, setOneLiner] = useState(member?.public?.oneLiner ?? '');
+      const [style, setStyle] = useState(member?.style ?? '');
       const [relations, setRelations] = useState(() => ({ ...(member?.public?.relations ?? {}) }));
       const [core, setCore] = useState(member?.core ?? '');
       const [extended, setExtended] = useState(member?.extended ?? '');
@@ -2861,6 +2870,7 @@ color-scheme:dark;
       }, [store]);
       const coreLength = [...core].length;
       const extendedLength = [...extended].length;
+      const styleLength = [...style].length;
       const exportCard = async () => {
         if (member === null) return;
         setCardBusy(true);
@@ -2892,6 +2902,7 @@ color-scheme:dark;
           setName(fields.name ?? '');
           setAvatar(fields.avatar ?? '');
           setOneLiner(fields.oneLiner ?? '');
+          setStyle(fields.style ?? '');
           setRelations({ ...(fields.relations ?? {}) });
           setCore(fields.core ?? '');
           setExtended(fields.extended ?? '');
@@ -2927,6 +2938,7 @@ color-scheme:dark;
             name: name.trim(),
             avatar,
             oneLiner,
+            style,
             relations,
             core,
             extended,
@@ -3003,6 +3015,21 @@ color-scheme:dark;
             onChange: (event) => setOneLiner(event.target.value),
             placeholder: t('create.memberOneLinerPlaceholder'),
           }),
+        ),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: 'mgc-member-style' }, t('members.style')),
+          h('textarea', {
+            id: 'mgc-member-style',
+            className: 'mgc-textarea2',
+            value: style,
+            maxLength: 300,
+            onChange: (event) => setStyle(event.target.value),
+            placeholder: t('members.stylePlaceholder'),
+          }),
+          h('div', { className: 'mgc-hint' }, t('members.styleCount', { n: styleLength })),
+          h('div', { className: 'mgc-hint' }, t('members.styleHint')),
         ),
         h(
           'div',
