@@ -82,6 +82,7 @@ test('group import normalization preserves policy, relations, and warnings', () 
   const bundle = buildGroupBundle({ group, members });
   bundle.group.owner.relations.不存在 = '应被跳过';
   bundle.members[0].avatar = 'https://example.com/a.png';
+  bundle.unknown = 'ignored';
   const normalized = normalizeGroupBundle(bundle);
   assert.equal(normalized.name, '旧城书店');
   assert.equal(normalized.policy.bystanderChance, 55);
@@ -92,6 +93,7 @@ test('group import normalization preserves policy, relations, and warnings', () 
   assert.equal(normalized.members[0].avatar, null);
   assert.ok(normalized.warnings.some((warning) => warning.includes('不在群内')));
   assert.ok(normalized.warnings.some((warning) => warning.includes('头像')));
+  assert.ok(normalized.warnings.some((warning) => warning.includes('未知字段')));
   const preview = previewGroupBundle(normalized, { bytes: 1234 });
   assert.equal(preview.groupName, '旧城书店');
   assert.equal(preview.memberCount, 2);

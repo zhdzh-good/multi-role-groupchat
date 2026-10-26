@@ -160,7 +160,7 @@ export function parsePortable(input, expectedKind = null) {
   let value;
   if (typeof input === 'string') {
     try {
-      value = JSON.parse(input);
+      value = JSON.parse(input.replace(/^\uFEFF/, ''));
     } catch {
       throw new PortableError('文件不是有效的 JSON。', 'groupchat/portable-json');
     }
@@ -228,6 +228,8 @@ export function normalizeGroupBundle(value) {
   const groupRaw = isObject(value?.group) ? value.group : null;
   if (groupRaw === null) throw new PortableError('群配置缺少 group 对象。');
 
+  warnUnknown(value, ['format', 'version', 'app', 'exportedAt', 'group', 'members'], '群配置', warnings);
+  warnUnknown(groupRaw, ['name', 'brief', 'owner', 'policy', 'budget', 'model'], 'group', warnings);
   const name = requiredName(groupRaw.name, '群名', 40);
   const brief = stringField(groupRaw.brief, '群简介', 2000);
   const rawMembers = Array.isArray(value.members) ? value.members : null;
@@ -247,6 +249,7 @@ export function normalizeGroupBundle(value) {
   });
 
   const ownerRaw = isObject(groupRaw.owner) ? groupRaw.owner : {};
+  warnUnknown(ownerRaw, ['name', 'oneLiner', 'setting', 'avatar', 'relations'], '我的角色', warnings);
   const ownerValidation = validateOwnerName(ownerRaw.name, entries.map(({ id, name: memberName }) => ({ id, name: memberName })));
   if (!ownerValidation.ok) throw new PortableError(`我的角色：${ownerValidation.message}`);
   const memberNames = new Set(entries.map((entry) => entry.name));
@@ -261,6 +264,7 @@ export function normalizeGroupBundle(value) {
 
   const members = entries.map(({ name: memberName, raw }) => {
     const displayed = `成员“${memberName}”`;
+    warnUnknown(raw, ['name', 'oneLiner', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'], displayed, warnings);
     const model = normalizeModel(raw.model);
     if (raw.model !== null && raw.model !== undefined && model === null) {
       warnings.push(`${displayed}的模型覆盖无法识别，已忽略。`);
@@ -286,6 +290,9 @@ export function normalizeGroupBundle(value) {
   const model = normalizeModel(groupRaw.model);
   if (groupRaw.model !== null && groupRaw.model !== undefined && model === null) {
     warnings.push('群模型覆盖无法识别，已忽略。');
+  }
+  if (model !== null || members.some((member) => member.model !== null)) {
+    warnings.push('群配置包含模型覆盖，导入后请确认目标环境已配置对应 provider。');
   }
   return {
     name,
@@ -320,6 +327,15 @@ export function normalizeCharacterCard(value, expectedKind = null) {
   const raw = value.character;
   if (!isObject(raw)) throw new PortableError('角色卡缺少 character 对象。');
   const warnings = [];
+  warnUnknown(value, ['format', 'version', 'app', 'exportedAt', 'kind', 'character'], '角色卡', warnings);
+  warnUnknown(
+    raw,
+    kind === 'owner'
+      ? ['name', 'oneLiner', 'setting', 'avatar', 'relations']
+      : ['name', 'oneLiner', 'core', 'extended', 'extendedEnabled', 'avatar', 'relations', 'model'],
+    kind === 'owner' ? '我的角色' : '成员卡',
+    warnings,
+  );
   const name = kind === 'owner'
     ? ownerNameOrThrow(raw.name)
     : memberNameOrThrow(raw.name);
@@ -355,6 +371,7 @@ export function normalizeCharacterCard(value, expectedKind = null) {
       relations,
       model,
     };
+    if (model !== null) warnings.push('角色卡包含模型覆盖，保存前请确认目标环境已配置对应 provider。');
   }
   return { kind, character, warnings };
 }
@@ -562,6 +579,22 @@ function ownerNameOrThrow(value) {
   return validation.name;
 }
 
+
+/**
+ * Warn about fields a v1 reader does not understand instead of silently
+ * dropping them.
+ * @param {object} value - source object.
+ * @param {string[]} allowed - known keys.
+ * @param {string} label - field label.
+ * @param {string[]} warnings - collector.
+ * @returns {void}
+ */
+function warnUnknown(value, allowed, label, warnings) {
+  const known = new Set(allowed);
+  for (const key of Object.keys(value)) {
+    if (!known.has(key)) warnings.push(`${label}的未知字段“${key}”已忽略。`);
+  }
+}
 
 /**
  * @param {unknown} value - candidate.

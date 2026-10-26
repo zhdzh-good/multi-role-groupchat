@@ -366,6 +366,7 @@ window.__ModuleLoader__.load({
       'export.markdownTitle': 'Markdown 聊天记录',
       'portable.title': '角色与群配置',
       'portable.hint': '导出 JSON 备份，或从备份导入为一个新群；不包含消息记录、钉住和导出历史。',
+      'portable.importOnlyHint': '选择之前导出的 JSON 群配置，预览后导入为一个新群。',
       'portable.includeAvatars': '包含头像',
       'portable.avatarNote': '头像会让文件变大；关闭后仍保留名字、设定和关系。',
       'portable.exportGroup': '导出群配置',
@@ -577,6 +578,7 @@ window.__ModuleLoader__.load({
       'export.markdownTitle': 'Markdown transcript',
       'portable.title': 'Character and group files',
       'portable.hint': 'Export a JSON backup, or import one as a new group. Messages, pins, and export history are not included.',
+      'portable.importOnlyHint': 'Choose a previously exported JSON group config, preview it, then import it as a new group.',
       'portable.includeAvatars': 'Include avatars',
       'portable.avatarNote': 'Avatars make the file larger; names, settings, and relations remain without them.',
       'portable.exportGroup': 'Export group config',
@@ -3167,34 +3169,17 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Group backup (portable JSON) export/import card.
-     * @param {{state: object, t: object, store: object}} props - panel inputs.
+     * Import control shared by the export card and the onboarding form.
+     * @param {{store: object, t: object, disabled?: boolean, onImported?: Function}} props - control inputs.
      * @returns {any} element.
      */
-    function PortableGroupPanel({ state, t, store }) {
-      const [includeAvatars, setIncludeAvatars] = useState(true);
-      const [busy, setBusy] = useState(null);
-      const [error, setError] = useState(null);
-      const [notice, setNotice] = useState(null);
+    function GroupImportControl({ store, t, disabled = false, onImported }) {
+      const [busy, setBusy] = useState(false);
       const [preview, setPreview] = useState(null);
       const [text, setText] = useState('');
+      const [error, setError] = useState(null);
+      const [notice, setNotice] = useState(null);
       const input = useRef(null);
-      const turnBusy = state.busy || state.activeTurn !== null;
-
-      const exportGroup = async () => {
-        setBusy('export');
-        setError(null);
-        setNotice(null);
-        try {
-          const result = await store.exportPortable({ scope: 'group', includeAvatars });
-          downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
-          setNotice(t('portable.groupExported'));
-        } catch (reason) {
-          setError(reason instanceof Error ? reason.message : String(reason));
-        } finally {
-          setBusy(null);
-        }
-      };
 
       const choose = async (event) => {
         const file = event.target.files?.[0];
@@ -3204,7 +3189,7 @@ window.__ModuleLoader__.load({
           setError(t('portable.tooLarge'));
           return;
         }
-        setBusy('read');
+        setBusy(true);
         setError(null);
         setNotice(null);
         setPreview(null);
@@ -3216,58 +3201,41 @@ window.__ModuleLoader__.load({
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : String(reason));
         } finally {
-          setBusy(null);
+          setBusy(false);
         }
       };
 
       const importGroup = async () => {
         if (text.length === 0) return;
-        setBusy('import');
+        setBusy(true);
         setError(null);
         setNotice(null);
+        let imported = null;
         try {
-          const result = await store.importGroupBundle(text);
+          imported = await store.importGroupBundle(text);
           setPreview(null);
           setText('');
-          setNotice(t('portable.imported', { name: result.state.group.name }));
+          setNotice(t('portable.imported', { name: imported.state.group.name }));
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : String(reason));
         } finally {
-          setBusy(null);
+          setBusy(false);
         }
+        if (imported !== null && onImported !== undefined) onImported(imported);
       };
 
       const summary = preview?.preview ?? null;
       const warnings = preview?.warnings ?? [];
       return h(
         'div',
-        { className: 'mgc-card', style: { marginBottom: '18px' } },
-        h('h3', { className: 'mgc-cardTitle' }, t('portable.title')),
-        h('p', { className: 'mgc-hint', style: { margin: '4px 0 12px' } }, t('portable.hint')),
-        h(
-          'label',
-          { className: 'mgc-check', style: { marginBottom: '8px' } },
-          h('input', {
-            type: 'checkbox',
-            checked: includeAvatars,
-            onChange: (event) => setIncludeAvatars(event.target.checked),
-          }),
-          t('portable.includeAvatars'),
-        ),
-        h('div', { className: 'mgc-hint', style: { marginBottom: '12px' } }, t('portable.avatarNote')),
+        null,
         h(
           'div',
-          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '10px' } },
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '8px' } },
           h(
             'button',
-            { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: exportGroup, disabled: busy !== null },
-            h(IconDownload, { size: 12 }),
-            busy === 'export' ? t('portable.exporting') : t('portable.exportGroup'),
-          ),
-          h(
-            'button',
-            { type: 'button', className: 'mgc-btn', onClick: () => input.current?.click(), disabled: busy !== null || turnBusy },
-            busy === 'read' ? t('portable.reading') : t('portable.importGroup'),
+            { type: 'button', className: 'mgc-btn', onClick: () => input.current?.click(), disabled: busy || disabled },
+            busy ? t('portable.reading') : t('portable.importGroup'),
           ),
         ),
         h('input', {
@@ -3277,8 +3245,6 @@ window.__ModuleLoader__.load({
           style: { display: 'none' },
           onChange: choose,
         }),
-        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.onlyJson')),
-        turnBusy ? h('div', { className: 'mgc-warnText', style: { marginBottom: '10px' } }, t('portable.importBusy')) : null,
         error !== null ? h('p', { className: 'mgc-error' }, error) : null,
         notice !== null ? h('p', { className: 'mgc-success' }, notice) : null,
         summary === null
@@ -3324,17 +3290,78 @@ window.__ModuleLoader__.load({
                       setPreview(null);
                       setText('');
                     },
-                    disabled: busy !== null,
+                    disabled: busy,
                   },
                   t('common.cancel'),
                 ),
                 h(
                   'button',
-                  { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: importGroup, disabled: busy !== null || turnBusy },
-                  busy === 'import' ? t('portable.importing') : t('portable.importAsNew'),
+                  { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: importGroup, disabled: busy || disabled },
+                  busy ? t('portable.importing') : t('portable.importAsNew'),
                 ),
               ),
             ),
+      );
+    }
+
+    /**
+     * Group backup (portable JSON) export/import card.
+     * @param {{state: object, t: object, store: object}} props - panel inputs.
+     * @returns {any} element.
+     */
+    function PortableGroupPanel({ state, t, store }) {
+      const [includeAvatars, setIncludeAvatars] = useState(true);
+      const [busy, setBusy] = useState(false);
+      const [error, setError] = useState(null);
+      const [notice, setNotice] = useState(null);
+      const turnBusy = state.busy || state.activeTurn !== null;
+
+      const exportGroup = async () => {
+        setBusy(true);
+        setError(null);
+        setNotice(null);
+        try {
+          const result = await store.exportPortable({ scope: 'group', includeAvatars });
+          downloadText(result.filename, `${JSON.stringify(result.data, null, 2)}\n`);
+          setNotice(t('portable.groupExported'));
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      return h(
+        'div',
+        { className: 'mgc-card', style: { marginBottom: '18px' } },
+        h('h3', { className: 'mgc-cardTitle' }, t('portable.title')),
+        h('p', { className: 'mgc-hint', style: { margin: '4px 0 12px' } }, t('portable.hint')),
+        h(
+          'label',
+          { className: 'mgc-check', style: { marginBottom: '8px' } },
+          h('input', {
+            type: 'checkbox',
+            checked: includeAvatars,
+            onChange: (event) => setIncludeAvatars(event.target.checked),
+          }),
+          t('portable.includeAvatars'),
+        ),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '12px' } }, t('portable.avatarNote')),
+        h(
+          'div',
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '10px' } },
+          h(
+            'button',
+            { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: exportGroup, disabled: busy },
+            h(IconDownload, { size: 12 }),
+            busy ? t('portable.exporting') : t('portable.exportGroup'),
+          ),
+        ),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.onlyJson')),
+        turnBusy ? h('div', { className: 'mgc-warnText', style: { marginBottom: '10px' } }, t('portable.importBusy')) : null,
+        error !== null ? h('p', { className: 'mgc-error' }, error) : null,
+        notice !== null ? h('p', { className: 'mgc-success' }, notice) : null,
+        h(GroupImportControl, { store, t, disabled: turnBusy }),
       );
     }
 
@@ -3551,6 +3578,13 @@ window.__ModuleLoader__.load({
         h('h1', { className: 'mgc-h1' }, t('create.title')),
         h('p', { className: 'mgc-p' }, t('create.desc')),
         h('div', { className: 'mgc-hint', style: { marginBottom: '16px' } }, t('create.fieldsHint')),
+        h(
+          'div',
+          { className: 'mgc-card', style: { marginBottom: '16px' } },
+          h('h3', { className: 'mgc-cardTitle' }, t('portable.importGroup')),
+          h('p', { className: 'mgc-hint', style: { margin: '4px 0 10px' } }, t('portable.importOnlyHint')),
+          h(GroupImportControl, { store, t, onImported: onCreated }),
+        ),
         h(
           'div',
           { className: 'mgc-field' },
