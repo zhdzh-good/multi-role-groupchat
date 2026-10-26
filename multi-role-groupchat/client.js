@@ -485,8 +485,8 @@ color-scheme:dark;
       'group.bystanderChanceHint': '目标回应完后，其余每位成员按这个概率接话；0 表示不主动接话，100 表示都接。',
       'group.modelTitle': '模型',
       'group.modelInherit': '跟随宿主默认模型',
-      'group.modelProvider': 'Provider',
-      'group.modelId': 'Model',
+      'group.modelProvider': '模型服务商',
+      'group.modelId': '模型',
       'group.budgetTitle': '预算',
       'group.maxInputTokens': '输入 token 上限',
       'group.maxOutputTokens': '输出 token 上限',
@@ -495,7 +495,15 @@ color-scheme:dark;
       'group.noDefaultModel': '宿主还没有选择默认模型',
       'group.policyHint': '保存后立即生效；智能路由只影响之后发送的消息。',
       'group.budgetHint': '累计用量达到上限后停止生成，并写入一条提示。设为 0 表示不限制。',
-      'group.modelHint': '群级覆盖留空时使用宿主默认；成员还可以再单独覆盖。',
+      'group.modelHint': '从宿主已注册的 provider / model 目录选择；群级覆盖留空时使用宿主默认，成员还可以再单独覆盖。',
+      'group.modelLoading': '正在读取模型目录…',
+      'group.modelCatalogError': '模型目录读取失败：{message}',
+      'group.modelRetry': '重试',
+      'group.modelNoProviders': '宿主还没有注册 provider，请先在宿主设置里配置模型。',
+      'group.modelNoModels': '这个 provider 没有返回可用模型，请检查宿主配置。',
+      'group.modelSelectPlaceholder': '请选择…',
+      'group.modelCurrent': '当前',
+      'group.modelRequired': '请选择 provider 和 model，或勾选跟随宿主默认。',
       'group.deleteTitle': '危险操作',
       'group.deleteDesc': '删除这个群会永久移除成员设定、消息事件、钉住与导出文件，无法恢复。建议先导出 Markdown。',
       'group.deleteButton': '删除这个群聊',
@@ -720,8 +728,8 @@ color-scheme:dark;
       'group.bystanderChanceHint': 'After the addressees reply, each remaining member joins with this probability; 0 never, 100 always.',
       'group.modelTitle': 'Model',
       'group.modelInherit': 'Follow the Host default model',
-      'group.modelProvider': 'Provider',
-      'group.modelId': 'Model',
+      'group.modelProvider': '模型服务商',
+      'group.modelId': '模型',
       'group.budgetTitle': 'Budget',
       'group.maxInputTokens': 'Input token limit',
       'group.maxOutputTokens': 'Output token limit',
@@ -730,7 +738,15 @@ color-scheme:dark;
       'group.noDefaultModel': 'The Host has no default model selected',
       'group.policyHint': 'Applies immediately; smart routing only affects messages sent afterwards.',
       'group.budgetHint': 'Generation stops and records a notice once accumulated usage reaches a limit. 0 disables a limit.',
-      'group.modelHint': 'Leave the group override empty to follow the Host default; each member can override again.',
+      'group.modelHint': 'Pick from the Host provider / model catalog. Leave the group override empty to follow the Host default; each member can override again.',
+      'group.modelLoading': 'Loading model catalog…',
+      'group.modelCatalogError': 'Could not load the model catalog: {message}',
+      'group.modelRetry': 'Retry',
+      'group.modelNoProviders': 'No provider is registered yet. Configure one in the Host settings first.',
+      'group.modelNoModels': 'This provider returned no models. Check the Host configuration.',
+      'group.modelSelectPlaceholder': 'Select…',
+      'group.modelCurrent': 'current',
+      'group.modelRequired': 'Choose a provider and model, or follow the Host default.',
       'group.deleteTitle': 'Danger zone',
       'group.deleteDesc': 'Deleting this group permanently removes its member settings, event log, pins, and exports. This cannot be undone. Export Markdown first if you may need it.',
       'group.deleteButton': 'Delete this group',
@@ -2456,8 +2472,58 @@ color-scheme:dark;
      * @param {object} props - model inputs.
      * @returns {any} element.
      */
-    function ModelFields({ t, inherit, onInherit, provider, model, onProvider, onModel, defaultModel, catalog, idPrefix }) {
-      const providerList = catalog?.providers ?? [];
+    function ModelFields({
+      t,
+      inherit,
+      onInherit,
+      provider,
+      model,
+      onProvider,
+      onModel,
+      defaultModel,
+      catalog,
+      catalogError = null,
+      onReload,
+      idPrefix,
+    }) {
+      const providers = catalog?.providers ?? [];
+      const providerOptions = [...providers];
+      if (provider.length > 0 && !providers.some((item) => item.id === provider)) {
+        providerOptions.unshift({ id: provider, name: `${provider} · ${t('group.modelCurrent')}`, models: [] });
+      }
+      const selected = providers.find((item) => item.id === provider);
+      const models = selected?.models ?? [];
+      const modelOptions = [...models];
+      if (model.length > 0 && !models.some((entry) => entry.id === model)) {
+        modelOptions.unshift({ id: model, name: `${model} · ${t('group.modelCurrent')}` });
+      }
+      const loading = catalog === null && catalogError === null;
+      const canSelectProvider = catalog !== null && providerOptions.length > 0;
+      const providerError = typeof selected?.error === 'string' ? selected.error : null;
+      const optionLabel = (entry) => (entry.name && entry.name !== entry.id ? `${entry.name} · ${entry.id}` : entry.id);
+      const modelFallback = !loading && (
+        catalog === null
+        || !canSelectProvider
+        || (selected !== undefined && models.length === 0)
+        || (provider.length > 0 && selected === undefined)
+      );
+      const chooseProvider = (event) => {
+        const next = event.target.value;
+        onProvider(next);
+        if (next === '') {
+          onModel('');
+          return;
+        }
+        const entry = providers.find((item) => item.id === next);
+        if (entry === undefined) return;
+        if ((entry.models ?? []).length === 0) {
+          onModel('');
+          return;
+        }
+        if (!(entry.models ?? []).some((candidate) => candidate.id === model)) {
+          onModel(entry.models[0].id);
+        }
+      };
       return h(
         'div',
         null,
@@ -2480,43 +2546,94 @@ color-scheme:dark;
                 'div',
                 { className: 'mgc-field', style: { marginBottom: 0 } },
                 h('label', { className: 'mgc-label', htmlFor: `${idPrefix}-provider` }, t('group.modelProvider')),
-                h('input', {
-                  id: `${idPrefix}-provider`,
-                  className: 'mgc-input',
-                  value: provider,
-                  list: `${idPrefix}-providers`,
-                  onChange: (event) => onProvider(event.target.value),
-                  placeholder: 'deepseek',
-                  spellCheck: false,
-                }),
-                h(
-                  'datalist',
-                  { id: `${idPrefix}-providers` },
-                  providerList.map((item) => h('option', { key: item.id, value: item.id }, item.name)),
-                ),
+                loading
+                  ? h(
+                      'select',
+                      { className: 'mgc-select', id: `${idPrefix}-provider`, disabled: true },
+                      h('option', { value: '' }, t('group.modelLoading')),
+                    )
+                  : canSelectProvider
+                    ? h(
+                        'select',
+                        {
+                          id: `${idPrefix}-provider`,
+                          className: 'mgc-select',
+                          value: provider,
+                          onChange: chooseProvider,
+                        },
+                        h('option', { value: '' }, t('group.modelSelectPlaceholder')),
+                        providerOptions.map((item) =>
+                          h('option', { key: item.id, value: item.id }, optionLabel(item)),
+                        ),
+                      )
+                    : h('input', {
+                        id: `${idPrefix}-provider`,
+                        className: 'mgc-input',
+                        value: provider,
+                        onChange: (event) => onProvider(event.target.value),
+                        placeholder: 'deepseek',
+                        spellCheck: false,
+                      }),
               ),
               h(
                 'div',
                 { className: 'mgc-field', style: { marginBottom: 0 } },
                 h('label', { className: 'mgc-label', htmlFor: `${idPrefix}-model` }, t('group.modelId')),
-                h('input', {
-                  id: `${idPrefix}-model`,
-                  className: 'mgc-input',
-                  value: model,
-                  list: `${idPrefix}-models`,
-                  onChange: (event) => onModel(event.target.value),
-                  placeholder: 'deepseek-chat',
-                  spellCheck: false,
-                }),
-                h(
-                  'datalist',
-                  { id: `${idPrefix}-models` },
-                  providerList.flatMap((item) =>
-                    (item.models ?? []).map((entry) => h('option', { key: `${item.id}/${entry.id}`, value: entry.id }, entry.name)),
-                  ),
-                ),
+                loading
+                  ? h(
+                      'select',
+                      { className: 'mgc-select', id: `${idPrefix}-model`, disabled: true },
+                      h('option', { value: '' }, t('group.modelLoading')),
+                    )
+                  : modelFallback
+                    ? h('input', {
+                        id: `${idPrefix}-model`,
+                        className: 'mgc-input',
+                        value: model,
+                        onChange: (event) => onModel(event.target.value),
+                        placeholder: 'deepseek-chat',
+                        spellCheck: false,
+                      })
+                    : h(
+                        'select',
+                        {
+                          id: `${idPrefix}-model`,
+                          className: 'mgc-select',
+                          value: model,
+                          onChange: (event) => onModel(event.target.value),
+                          disabled: provider.length === 0,
+                        },
+                        h('option', { value: '' }, t('group.modelSelectPlaceholder')),
+                        modelOptions.map((entry) =>
+                          h('option', { key: entry.id, value: entry.id }, optionLabel(entry)),
+                        ),
+                      ),
               ),
             ),
+        catalogError !== null
+          ? h(
+              'div',
+              { className: 'mgc-error', style: { marginTop: '8px' } },
+              t('group.modelCatalogError', { message: catalogError }),
+              typeof onReload === 'function'
+                ? h(
+                    'button',
+                    { type: 'button', className: 'mgc-btn', style: { marginLeft: '8px' }, onClick: onReload },
+                    t('group.modelRetry'),
+                  )
+                : null,
+            )
+          : null,
+        catalog !== null && providers.length === 0
+          ? h('div', { className: 'mgc-warnText', style: { marginTop: '6px' } }, t('group.modelNoProviders'))
+          : null,
+        catalog !== null && selected !== undefined && models.length === 0
+          ? h(
+              'div',
+              { className: 'mgc-warnText', style: { marginTop: '6px' } },
+              `${t('group.modelNoModels')}${providerError === null ? '' : ` ${providerError}`}`,
+            )
+          : null,
         h('div', { className: 'mgc-hint', style: { marginTop: '6px' } }, t('group.modelHint')),
       );
     }
@@ -2562,7 +2679,7 @@ color-scheme:dark;
           return;
         }
         if (!draft.inheritModel && (draft.provider.trim().length === 0 || draft.model.trim().length === 0)) {
-          setError(t('group.modelHint'));
+          setError(t('group.modelRequired'));
           return;
         }
         setSaving(true);
@@ -2677,6 +2794,8 @@ color-scheme:dark;
           onModel: (value) => patch('model', value),
           defaultModel: state.defaultModel,
           catalog: state.models,
+          catalogError: state.modelsError,
+          onReload: () => store.loadModels(),
           idPrefix: uid.current,
         }),
         h(
@@ -2960,7 +3079,7 @@ color-scheme:dark;
           return;
         }
         if (!inheritModel && (provider.trim().length === 0 || model.trim().length === 0)) {
-          setError(t('group.modelHint'));
+          setError(t('group.modelRequired'));
           return;
         }
         setSaving(true);
@@ -3215,6 +3334,8 @@ color-scheme:dark;
             onModel: setModel,
             defaultModel: state.defaultModel,
             catalog: state.models,
+            catalogError: state.modelsError,
+            onReload: () => store.loadModels(),
             idPrefix: uid.current,
           }),
         ),
