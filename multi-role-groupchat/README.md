@@ -104,9 +104,15 @@ node --test --test-name-pattern=randomized test/stability.test.js
 plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupchat
 ```
 
+也可以直接用 GitHub Release 的预构建 tarball，免去本地路径：
+
+```bash
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.2.0/zhdzh-good-multi-role-groupchat-1.2.0.tgz"
+```
+
 安装或升级后刷新 Web 页面；左侧栏出现「群聊」。数据保存在
 `$DSH_HOME/plugin-data/multi-role-groupchat/`，重新安装插件不会删除群聊数据。
-当前通过本地 bundle 安装，未发布到 npm。
+当前未发布到 npm；GitHub 仓库和 Release tarball 均可安装。
 
 ## 新建页与管理页的字段对应
 

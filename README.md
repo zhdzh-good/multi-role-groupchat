@@ -71,6 +71,12 @@ git clone https://github.com/zhdzh-good/multi-role-groupchat.git
 plugin_manager action=install_bundle target=<仓库路径>/multi-role-groupchat
 ```
 
+或直接安装 GitHub Release 的预构建 tarball：
+
+```bash
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.2.0/zhdzh-good-multi-role-groupchat-1.2.0.tgz"
+```
+
 安装或升级后刷新 Web 页面，左侧栏出现「群聊」。数据保存在
 `$DSH_HOME/plugin-data/multi-role-groupchat/`，重新安装插件不会删除群聊数据。
 

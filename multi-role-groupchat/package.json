@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "type": "module",
-  "description": "Multi-role group chat panel with smart addressee routing, probabilistic bystander replies, portable character/group JSON import-export, an owner profile, @ handoffs, pins, rewrites, token budgets, and Markdown export.",
+  "description": "Multi-role group chat panel for DeepSeek Harness: smart addressee routing, probabilistic bystander replies, portable character/group JSON import-export, owner profile, @ handoffs, pins, rewrites, token budgets, and Markdown export.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -18,6 +18,7 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "assets/icon-180.png",
     "README.md",
     "LICENSE"
   ],
@@ -48,5 +49,18 @@
   },
   "bugs": {
     "url": "https://github.com/zhdzh-good/multi-role-groupchat/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "group-chat",
+    "roleplay",
+    "multi-agent",
+    "ai-roleplay"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
   }
 }
