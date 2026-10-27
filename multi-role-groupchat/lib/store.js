@@ -1,13 +1,17 @@
 /**
  * Durable group storage under the plugin's own data directory.
  *
- * Layout (plan §8):
- *   groups/<gid>/group.json
- *   groups/<gid>/members/<cid>/card.json
- *   groups/<gid>/members/<cid>/setting/core.md
- *   groups/<gid>/members/<cid>/setting/extended.md
+ * Layout:
+ *   characters/<cid>/card.json
+ *   characters/<cid>/setting/core.md
+ *   characters/<cid>/setting/extended.md
+ *   characters/<cid>/setting/memory.md
+ *   groups/<gid>/group.json          # characterIds + owner + policy
  *   groups/<gid>/events.jsonl
  *   groups/<gid>/export/script.md
+ *
+ * Legacy v1 groups keep `groups/<gid>/members/` on disk for rollback after
+ * their first load moves the records into the global character library.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -35,7 +39,8 @@ import {
 
 const GROUP_ID = /^g_[A-Za-z0-9]{4,40}$/;
 const MEMBER_ID = /^c_[A-Za-z0-9]{4,40}$/;
-const SCHEMA_VERSION = 1;
+const CHARACTER_ID = MEMBER_ID;
+const SCHEMA_VERSION = 2;
 
 /** Largest accepted single setting file; the plan warns well below this. */
 const MAX_SETTING_CHARS = 20000;
@@ -100,6 +105,22 @@ export class GroupStore {
   /** @returns {Promise<void>} creates the data layout. */
   async init() {
     await fs.mkdir(path.join(this.root, 'groups'), { recursive: true });
+    await fs.mkdir(path.join(this.root, 'characters'), { recursive: true });
+  }
+
+  /** @returns {string} global character directory. */
+  charactersDir() {
+    return path.join(this.root, 'characters');
+  }
+
+  /**
+   * Global character directory for one id.
+   * @param {string} cid - character id.
+   * @returns {string} directory.
+   */
+  characterDir(cid) {
+    if (!CHARACTER_ID.test(cid)) throw new GroupChatError('角色 id 无效。', 400, 'groupchat/bad-character-id');
+    return path.join(this.charactersDir(), cid);
   }
 
   /**
@@ -110,6 +131,79 @@ export class GroupStore {
   dirOf(gid) {
     if (!GROUP_ID.test(gid)) throw new GroupChatError('群 id 无效。', 400, 'groupchat/bad-group-id');
     return path.join(this.root, 'groups', gid);
+  }
+
+  /**
+   * List every global character with the groups that reference it.
+   * @returns {Promise<Array<object>>} characters sorted by name.
+   */
+  async listCharacters() {
+    await this.init();
+    const usage = await this.#characterUsageMap();
+    const entries = await fs.readdir(this.charactersDir(), { withFileTypes: true });
+    const characters = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !CHARACTER_ID.test(entry.name)) continue;
+      const character = await readCharacter(this.charactersDir(), entry.name);
+      if (character.missing) continue;
+      characters.push({
+        ...character,
+        usageGroups: usage.get(entry.name) ?? [],
+      });
+    }
+    characters.sort((left, right) => left.name.localeCompare(right.name, 'zh') || left.id.localeCompare(right.id));
+    return characters;
+  }
+
+  /**
+   * Map character id to the groups that reference it.
+   * @returns {Promise<Map<string, Array<{id: string, name: string}>>>} usage map.
+   */
+  async #characterUsageMap() {
+    const result = new Map();
+    const groupsDir = path.join(this.root, 'groups');
+    let entries;
+    try {
+      entries = await fs.readdir(groupsDir, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === 'ENOENT') return result;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !GROUP_ID.test(entry.name)) continue;
+      const raw = await readJson(path.join(groupsDir, entry.name, 'group.json'));
+      if (raw === null) continue;
+      const ids = Array.isArray(raw.characterIds)
+        ? raw.characterIds
+        : Array.isArray(raw.memberIds) ? raw.memberIds : [];
+      for (const id of ids) {
+        if (typeof id !== 'string' || !CHARACTER_ID.test(id)) continue;
+        const list = result.get(id) ?? [];
+        list.push({ id: entry.name, name: typeof raw.name === 'string' ? raw.name : '未命名群聊' });
+        result.set(id, list);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Delete one global character. Characters used by a group are protected.
+   * @param {string} cid - character id.
+   * @returns {Promise<void>} completion.
+   */
+  async deleteCharacter(cid) {
+    const character = await readCharacter(this.charactersDir(), cid);
+    if (character.missing) throw new GroupChatError('角色不存在。', 404, 'groupchat/character-not-found');
+    const usage = (await this.#characterUsageMap()).get(cid) ?? [];
+    if (usage.length > 0) {
+      throw new GroupChatError(
+        `角色“${character.name}”还在群 ${usage.map((group) => group.name).join('、')} 里，请先从这些群移除。`,
+        409,
+        'groupchat/character-in-use',
+      );
+    }
+    await fs.rm(this.characterDir(cid), { recursive: true, force: true });
+    this.groups.clear();
   }
 
   /**
@@ -158,7 +252,6 @@ export class GroupStore {
     const dir = this.dirOf(gid);
     const groupRaw = await readJson(path.join(dir, 'group.json'));
     if (groupRaw === null) throw new GroupChatError(`群 ${gid} 不存在。`, 404, 'groupchat/group-not-found');
-    const group = normalizeGroup(groupRaw, gid);
     if (typeof groupRaw.schemaVersion === 'number' && groupRaw.schemaVersion > SCHEMA_VERSION) {
       throw new GroupChatError(
         `群 ${gid} 的 schemaVersion 是 ${groupRaw.schemaVersion}，高于本插件支持的 ${SCHEMA_VERSION}。请升级插件或迁移数据。`,
@@ -166,11 +259,17 @@ export class GroupStore {
         'groupchat/schema-version',
       );
     }
-    const members = [];
-    for (const memberId of group.memberIds) {
-      members.push(await readMember(dir, memberId));
-    }
     const warnings = [];
+    let group = normalizeGroup(groupRaw, gid);
+    if (!Array.isArray(groupRaw.characterIds) || groupRaw.characterIds.length === 0 || group.schemaVersion < 2) {
+      const migration = await this.#migrateGroupV1(gid, dir, group);
+      group = migration.group;
+      warnings.push(...migration.warnings);
+    }
+    const members = [];
+    for (const characterId of group.characterIds) {
+      members.push(await readCharacter(this.charactersDir(), characterId));
+    }
     const events = await readEvents(path.join(dir, 'events.jsonl'), warnings);
     const state = replayEvents(events);
     const live = {
@@ -183,6 +282,48 @@ export class GroupStore {
     };
     this.groups.set(gid, live);
     return live;
+  }
+
+  /**
+   * Move a v1 group's per-group member directories into the global character
+   * library. The old files are left in place for rollback; the group document
+   * switches to `characterIds` only after every character write succeeds.
+   * @param {string} gid - group id.
+   * @param {string} dir - group directory.
+   * @param {object} group - normalized v1 group.
+   * @returns {Promise<{group: object, warnings: string[]}>} migrated group.
+   */
+  async #migrateGroupV1(gid, dir, group) {
+    const warnings = [];
+    const characterIds = [];
+    const legacyDir = path.join(dir, 'members');
+    for (const memberId of group.memberIds) {
+      const legacy = await readCharacterAt(legacyDir, memberId);
+      if (legacy.missing) {
+        warnings.push(`迁移时找不到成员 ${memberId}，已跳过。`);
+        continue;
+      }
+      const existing = await readCharacter(this.charactersDir(), memberId);
+      if (existing.missing) {
+        await writeCharacterAt(this.characterDir(memberId), legacy);
+      } else if (existing.name !== legacy.name) {
+        warnings.push(`角色 ${memberId} 已存在且名字不同，复用全局档案“${existing.name}”。`);
+      }
+      characterIds.push(memberId);
+    }
+    if (characterIds.length === 0) {
+      throw new GroupChatError(`群 ${gid} 没有可迁移的成员。`, 409, 'groupchat/migration-empty');
+    }
+    const next = {
+      ...group,
+      schemaVersion: SCHEMA_VERSION,
+      characterIds,
+      memberIds: characterIds,
+      migratedFromV1: true,
+      updatedAt: Math.floor(Date.now() / 1000),
+    };
+    await writeJson(path.join(dir, 'group.json'), next);
+    return { group: next, warnings };
   }
 
   /**
@@ -226,45 +367,61 @@ export class GroupStore {
     if ([...name].length > 40) throw new GroupChatError('群名最多 40 个字符。');
     const brief = typeof input.brief === 'string' ? input.brief : '';
     if ([...brief].length > 2000) throw new GroupChatError('群简介最多 2000 个字符。');
-    const drafts = Array.isArray(input.members) ? input.members : [];
-    if (drafts.length < 2 || drafts.length > 3) throw new GroupChatError('首版需要 2–3 个成员。');
-    const seen = [];
-    const members = [];
-    for (const draft of drafts) {
-      const validation = validateMemberName(draft?.name, seen);
-      if (!validation.ok) throw new GroupChatError(validation.message);
-      const id = makeId('c');
-      const card = {
-        schemaVersion: SCHEMA_VERSION,
-        id,
-        name: validation.name,
-        avatar: null,
-        public: {
-          oneLiner: typeof draft.oneLiner === 'string' ? draft.oneLiner.trim() : '',
-          relations: {},
-        },
-        privateRelations: {},
-        extendedEnabled: false,
-        style: typeof draft.style === 'string' ? draft.style.trim().slice(0, MAX_STYLE_CHARS) : '',
-        model: null,
-      };
-      seen.push({ id, name: validation.name });
-      members.push({
-        card,
-        core: typeof draft.core === 'string' ? draft.core : '',
-        memory: typeof draft.memory === 'string' ? draft.memory : '',
-      });
+
+    const requestedIds = Array.isArray(input?.characterIds)
+      ? [...new Set(input.characterIds.filter((id) => typeof id === 'string' && CHARACTER_ID.test(id)))]
+      : [];
+    const drafts = Array.isArray(input?.members) ? input.members : [];
+    if (requestedIds.length === 0 && (drafts.length < 2 || drafts.length > 3)) {
+      throw new GroupChatError('首版需要 2–3 个成员。');
     }
+    if (requestedIds.length > 0 && (requestedIds.length < 2 || requestedIds.length > 3)) {
+      throw new GroupChatError('一个群需要 2–3 个角色。');
+    }
+
+    const characters = [];
+    const createdCharacterIds = [];
+    if (requestedIds.length > 0) {
+      for (const id of requestedIds) {
+        const character = await readCharacter(this.charactersDir(), id);
+        if (character.missing) throw new GroupChatError(`角色 ${id} 不存在。`, 404, 'groupchat/character-not-found');
+        characters.push(character);
+      }
+    } else {
+      const seen = [];
+      for (const draft of drafts) {
+        const validation = validateMemberName(draft?.name, seen);
+        if (!validation.ok) throw new GroupChatError(validation.message);
+        const id = makeId('c');
+        const character = characterFromDraft(draft, id, validation.name);
+        characters.push(character);
+        createdCharacterIds.push(id);
+        seen.push({ id, name: validation.name });
+      }
+    }
+
+    const owner = normalizeOwner(
+      input.owner ?? {},
+      characters.map((character) => ({ id: character.id, name: character.name })),
+    );
+    const seenNames = new Set();
+    for (const character of characters) {
+      if (seenNames.has(character.name)) throw new GroupChatError(`角色名“${character.name}”重复。`);
+      if (character.name === owner.name) throw new GroupChatError(`角色已经叫“${owner.name}”，成员不能与角色重名。`);
+      seenNames.add(character.name);
+    }
+
     const gid = makeId('g');
     const now = Math.floor(Date.now() / 1000);
-    const owner = normalizeOwner(input.owner ?? {}, members.map((member) => ({ id: member.card.id, name: member.card.name })));
+    const characterIds = characters.map((character) => character.id);
     const group = {
       schemaVersion: SCHEMA_VERSION,
       id: gid,
       name,
       brief,
       owner,
-      memberIds: members.map((member) => member.card.id),
+      characterIds,
+      memberIds: characterIds,
       policy: normalizePolicy(input.policy),
       model: normalizeModel(input.model),
       budget: normalizeBudget(input.budget),
@@ -272,18 +429,23 @@ export class GroupStore {
       updatedAt: now,
     };
     const dir = this.dirOf(gid);
-    await fs.mkdir(path.join(dir, 'members'), { recursive: true });
-    for (const member of members) {
-      const memberDir = path.join(dir, 'members', member.card.id);
-      await fs.mkdir(path.join(memberDir, 'setting'), { recursive: true });
-      await writeJson(path.join(memberDir, 'card.json'), member.card);
-      await writeText(path.join(memberDir, 'setting', 'core.md'), member.core);
-      await writeText(path.join(memberDir, 'setting', 'extended.md'), '');
-      await writeText(path.join(memberDir, 'setting', 'memory.md'), member.memory);
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      for (const character of characters) {
+        if (createdCharacterIds.includes(character.id)) {
+          await writeCharacterAt(this.characterDir(character.id), character);
+        }
+      }
+      await writeText(path.join(dir, 'events.jsonl'), '');
+      await writeJson(path.join(dir, 'group.json'), group);
+    } catch (error) {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+      for (const id of createdCharacterIds) {
+        await fs.rm(this.characterDir(id), { recursive: true, force: true }).catch(() => {});
+      }
+      throw error;
     }
-    await writeText(path.join(dir, 'events.jsonl'), '');
-    await writeJson(path.join(dir, 'group.json'), group);
-    this.invalidate(gid);
+    this.groups.clear();
     return this.load(gid);
   }
 
@@ -321,6 +483,7 @@ export class GroupStore {
       budget: input.budget,
       model: input.model,
     });
+    const importedCharacterIds = live.members.map((member) => member.id);
     try {
       const byName = new Map(live.members.map((member) => [member.name, member.id]));
       for (const member of input.members) {
@@ -351,6 +514,7 @@ export class GroupStore {
       return this.load(live.gid);
     } catch (error) {
       await this.deleteGroup(live.gid).catch(() => {});
+      for (const id of importedCharacterIds) await this.deleteCharacter(id).catch(() => {});
       throw error;
     }
   }
@@ -413,10 +577,171 @@ export class GroupStore {
   }
 
   /**
-   * Create or update one member. Passing `memberId` edits; omitting it adds.
+   * Create or update one global character. Characters are library assets; a
+   * group only stores their ids, so editing here affects every group that
+   * references the character.
+   * @param {object} input - character fields; `id` edits, omission creates.
+   * @returns {Promise<object>} saved character document.
+   */
+  async saveCharacter(input) {
+    const id = typeof input?.id === 'string' && CHARACTER_ID.test(input.id) ? input.id : null;
+    const existing = id === null ? null : await readCharacter(this.charactersDir(), id);
+    if (id !== null && existing?.missing) throw new GroupChatError('角色不存在。', 404, 'groupchat/character-not-found');
+
+    const validation = validateMemberName(input?.name ?? existing?.name, [], id);
+    if (!validation.ok) throw new GroupChatError(validation.message);
+
+    // A rename must not collide with another character or the owner in any
+    // group that already references this character.
+    if (id !== null && validation.name !== existing.name) {
+      const usage = (await this.#characterUsageMap()).get(id) ?? [];
+      for (const group of usage) {
+        const raw = await readJson(path.join(this.dirOf(group.id), 'group.json'));
+        if (raw === null) continue;
+        const ids = Array.isArray(raw.characterIds) ? raw.characterIds : raw.memberIds ?? [];
+        for (const otherId of ids) {
+          if (otherId === id) continue;
+          const other = await readCharacter(this.charactersDir(), otherId);
+          if (!other.missing && other.name === validation.name) {
+            throw new GroupChatError(`群“${group.name}”里已经有角色叫“${validation.name}”。`);
+          }
+        }
+        const ownerName = ownerDisplayName({ owner: raw.owner });
+        if (ownerName === validation.name) throw new GroupChatError(`群“${group.name}”的角色叫“${ownerName}”，成员不能重名。`);
+      }
+    }
+
+    const oneLiner = typeof input?.oneLiner === 'string' ? input.oneLiner.trim() : existing?.public?.oneLiner ?? '';
+    if ([...oneLiner].length > 400) throw new GroupChatError('一句话档案最多 400 个字符。');
+    const style = typeof input?.style === 'string' ? input.style.trim() : existing?.style ?? '';
+    if ([...style].length > MAX_STYLE_CHARS) throw new GroupChatError(`说话方式最多 ${MAX_STYLE_CHARS} 个字符。`);
+    const memory = typeof input?.memory === 'string' ? input.memory : existing?.memory ?? '';
+    if ([...memory].length > MAX_MEMORY_CHARS) throw new GroupChatError(`私有记忆最多 ${MAX_MEMORY_CHARS} 个字符。`);
+    const core = typeof input?.core === 'string' ? input.core : existing?.core ?? '';
+    const extended = typeof input?.extended === 'string' ? input.extended : existing?.extended ?? '';
+    if ([...core].length > MAX_SETTING_CHARS) throw new GroupChatError(`核心设定最多 ${MAX_SETTING_CHARS} 个字符。`);
+    if ([...extended].length > MAX_SETTING_CHARS) throw new GroupChatError(`扩展设定最多 ${MAX_SETTING_CHARS} 个字符。`);
+
+    const validIds = await this.#characterIdSet();
+    const relations = {};
+    const relationSource = input?.relations === undefined ? existing?.public?.relations : input.relations;
+    if (relationSource !== null && typeof relationSource === 'object' && !Array.isArray(relationSource)) {
+      for (const [otherId, text] of Object.entries(relationSource)) {
+        if (otherId === id || !validIds.has(otherId)) continue;
+        if (typeof text !== 'string' || text.trim().length === 0) continue;
+        if ([...text].length > 200) throw new GroupChatError('单条关系描述最多 200 个字符。');
+        relations[otherId] = text.trim();
+      }
+    }
+    const privateRelations = {};
+    const privateSource = input?.privateRelations === undefined ? existing?.privateRelations : input.privateRelations;
+    if (privateSource !== null && typeof privateSource === 'object' && !Array.isArray(privateSource)) {
+      for (const [otherId, text] of Object.entries(privateSource)) {
+        if (otherId === id || !validIds.has(otherId)) continue;
+        if (typeof text !== 'string' || text.trim().length === 0) continue;
+        if ([...text].length > 200) throw new GroupChatError('单条私人关系描述最多 200 个字符。');
+        privateRelations[otherId] = text.trim();
+      }
+    }
+
+    const character = {
+      schemaVersion: SCHEMA_VERSION,
+      id: id ?? makeId('c'),
+      name: validation.name,
+      avatar: typeof input?.avatar === 'string' ? input.avatar : existing?.avatar ?? null,
+      public: { oneLiner, relations },
+      privateRelations,
+      style,
+      extendedEnabled: input?.extendedEnabled === undefined
+        ? existing?.extendedEnabled === true
+        : input.extendedEnabled === true,
+      model: input?.model === undefined ? existing?.model ?? null : normalizeModel(input.model),
+      core,
+      extended,
+      memory,
+      missing: false,
+    };
+    await writeCharacterAt(this.characterDir(character.id), character);
+    this.groups.clear();
+    return character;
+  }
+
+  /**
+   * Character ids currently available in the global library.
+   * @returns {Promise<Set<string>>} ids.
+   */
+  async #characterIdSet() {
+    await this.init();
+    const entries = await fs.readdir(this.charactersDir(), { withFileTypes: true });
+    return new Set(entries.filter((entry) => entry.isDirectory() && CHARACTER_ID.test(entry.name)).map((entry) => entry.name));
+  }
+
+  /**
+   * Add existing characters to a group.
+   * @param {string} gid - group id.
+   * @param {string[]} ids - character ids.
+   * @returns {Promise<object>} updated live state.
+   */
+  async addGroupCharacters(gid, ids) {
+    const live = await this.load(gid);
+    const current = [...live.group.characterIds];
+    for (const id of Array.isArray(ids) ? ids : []) {
+      if (typeof id !== 'string' || !CHARACTER_ID.test(id) || current.includes(id)) continue;
+      current.push(id);
+    }
+    return this.#setGroupCharacters(gid, current);
+  }
+
+  /**
+   * Remove one character from a group. The global character is not deleted.
+   * @param {string} gid - group id.
+   * @param {string} cid - character id.
+   * @returns {Promise<object>} updated live state.
+   */
+  async removeGroupCharacter(gid, cid) {
+    const live = await this.load(gid);
+    const current = live.group.characterIds.filter((id) => id !== cid);
+    return this.#setGroupCharacters(gid, current);
+  }
+
+  /**
+   * Replace a group's character roster after validating count, uniqueness,
+   * names, and the owner collision.
+   * @param {string} gid - group id.
+   * @param {string[]} ids - character ids.
+   * @returns {Promise<object>} updated live state.
+   */
+  async #setGroupCharacters(gid, ids) {
+    const live = await this.load(gid);
+    const unique = [...new Set(ids)];
+    if (unique.length < 2 || unique.length > 3) throw new GroupChatError('一个群需要 2–3 个角色。');
+    const characters = [];
+    for (const id of unique) {
+      const character = await readCharacter(this.charactersDir(), id);
+      if (character.missing) throw new GroupChatError(`角色 ${id} 不存在。`, 404, 'groupchat/character-not-found');
+      characters.push(character);
+    }
+    const seen = new Set();
+    const ownerName = ownerDisplayName(live.group);
+    for (const character of characters) {
+      if (seen.has(character.name)) throw new GroupChatError(`角色名“${character.name}”重复。`);
+      if (character.name === ownerName) throw new GroupChatError(`角色已经叫“${ownerName}”，成员不能与角色重名。`);
+      seen.add(character.name);
+    }
+    live.group.characterIds = unique;
+    live.group.memberIds = unique;
+    live.group.updatedAt = Math.floor(Date.now() / 1000);
+    await writeJson(path.join(live.dir, 'group.json'), live.group);
+    this.groups.clear();
+    return this.load(gid);
+  }
+
+  /**
+   * Create or update one member in a group's roster. Kept as the group-scoped
+   * compatibility API; the character itself is global.
    * @param {string} gid - group id.
    * @param {object} input - member fields.
-   * @returns {Promise<object>} saved member document.
+   * @returns {Promise<object>} saved character document.
    */
   async saveMember(gid, input) {
     const live = await this.load(gid);
@@ -435,68 +760,19 @@ export class GroupStore {
     if (validation.name === ownerName) {
       throw new GroupChatError(`角色已经叫“${ownerName}”，成员不能与角色重名。`);
     }
-    const oneLiner = typeof input?.oneLiner === 'string' ? input.oneLiner.trim() : existing?.public?.oneLiner ?? '';
-    if ([...oneLiner].length > 400) throw new GroupChatError('一句话档案最多 400 个字符。');
-    const relations = {};
-    if (input?.relations !== undefined && typeof input.relations === 'object' && input.relations !== null) {
-      for (const [otherId, text] of Object.entries(input.relations)) {
-        if (otherId === memberId) continue;
-        if (!live.members.some((member) => member.id === otherId) && otherId !== memberId) continue;
-        if (typeof text !== 'string' || text.trim().length === 0) continue;
-        if ([...text].length > 200) throw new GroupChatError('单条关系描述最多 200 个字符。');
-        relations[otherId] = text.trim();
-      }
-    }
-    const privateRelations = {};
-    if (input?.privateRelations === undefined) {
-      Object.assign(privateRelations, existing?.privateRelations ?? {});
-    } else if (input.privateRelations !== null && typeof input.privateRelations === 'object') {
-      for (const [otherId, text] of Object.entries(input.privateRelations)) {
-        if (otherId === memberId) continue;
-        if (!live.members.some((member) => member.id === otherId)) continue;
-        if (typeof text !== 'string' || text.trim().length === 0) continue;
-        if ([...text].length > 200) throw new GroupChatError('单条私人关系描述最多 200 个字符。');
-        privateRelations[otherId] = text.trim();
-      }
-    }
-    const style = typeof input?.style === 'string' ? input.style.trim() : existing?.style ?? '';
-    if ([...style].length > MAX_STYLE_CHARS) throw new GroupChatError(`说话方式最多 ${MAX_STYLE_CHARS} 个字符。`);
-    const memory = typeof input?.memory === 'string' ? input.memory : existing?.memory ?? '';
-    if ([...memory].length > MAX_MEMORY_CHARS) throw new GroupChatError(`私有记忆最多 ${MAX_MEMORY_CHARS} 个字符。`);
-    const core = typeof input?.core === 'string' ? input.core : existing?.core ?? '';
-    const extended = typeof input?.extended === 'string' ? input.extended : existing?.extended ?? '';
-    if ([...core].length > MAX_SETTING_CHARS) throw new GroupChatError(`核心设定最多 ${MAX_SETTING_CHARS} 个字符。`);
-    if ([...extended].length > MAX_SETTING_CHARS) throw new GroupChatError(`扩展设定最多 ${MAX_SETTING_CHARS} 个字符。`);
-    const id = memberId ?? makeId('c');
-    const card = {
-      schemaVersion: SCHEMA_VERSION,
-      id,
+    const saved = await this.saveCharacter({
+      ...input,
+      ...(memberId === null ? {} : { id: memberId }),
       name: validation.name,
-      avatar: typeof input?.avatar === 'string' ? input.avatar : existing?.avatar ?? null,
-      public: { oneLiner, relations },
-      privateRelations,
-      style,
-      extendedEnabled: input?.extendedEnabled === undefined
-        ? existing?.extendedEnabled === true
-        : input.extendedEnabled === true,
-      model: input?.model === undefined ? existing?.model ?? null : normalizeModel(input.model),
-    };
-    const memberDir = path.join(live.dir, 'members', id);
-    await fs.mkdir(path.join(memberDir, 'setting'), { recursive: true });
-    await writeJson(path.join(memberDir, 'card.json'), card);
-    await writeText(path.join(memberDir, 'setting', 'core.md'), core);
-    await writeText(path.join(memberDir, 'setting', 'extended.md'), extended);
-    await writeText(path.join(memberDir, 'setting', 'memory.md'), memory);
-    const member = { ...card, core, extended, memory };
-    const index = live.members.findIndex((candidate) => candidate.id === id);
-    if (index >= 0) live.members[index] = member;
-    else live.members.push(member);
-    if (index < 0) {
-      live.group.memberIds.push(id);
+    });
+    if (memberId === null) {
+      live.group.characterIds.push(saved.id);
+      live.group.memberIds = [...live.group.characterIds];
       live.group.updatedAt = Math.floor(Date.now() / 1000);
       await writeJson(path.join(live.dir, 'group.json'), live.group);
+      this.groups.clear();
     }
-    return member;
+    return saved;
   }
 
   /**
@@ -758,6 +1034,34 @@ export function buildStateView(live, turn) {
 }
 
 /**
+ * Build a global character from an onboarding/import draft.
+ * @param {object} draft - name, oneLiner, core, style, memory, extended fields.
+ * @param {string} id - new character id.
+ * @param {string} name - validated display name.
+ * @returns {object} character document.
+ */
+function characterFromDraft(draft, id, name) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    id,
+    name,
+    avatar: null,
+    public: {
+      oneLiner: typeof draft?.oneLiner === 'string' ? draft.oneLiner.trim() : '',
+      relations: {},
+    },
+    privateRelations: {},
+    style: typeof draft?.style === 'string' ? draft.style.trim().slice(0, MAX_STYLE_CHARS) : '',
+    extendedEnabled: false,
+    model: null,
+    core: typeof draft?.core === 'string' ? draft.core : '',
+    extended: typeof draft?.extended === 'string' ? draft.extended : '',
+    memory: typeof draft?.memory === 'string' ? draft.memory : '',
+    missing: false,
+  };
+}
+
+/**
  * Map name-keyed relations onto ids for one group.
  * @param {Record<string,string>|null|undefined} relations - name-to-text map.
  * @param {Map<string,string>} byName - member name to id.
@@ -794,11 +1098,15 @@ function previewText(text) {
  */
 function normalizeGroup(raw, gid) {
   const memberIds = Array.isArray(raw.memberIds) ? raw.memberIds.filter((id) => typeof id === 'string' && MEMBER_ID.test(id)) : [];
+  const characterIds = Array.isArray(raw.characterIds)
+    ? raw.characterIds.filter((id) => typeof id === 'string' && CHARACTER_ID.test(id))
+    : memberIds;
   return {
     schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : SCHEMA_VERSION,
     id: gid,
     name: typeof raw.name === 'string' && raw.name.trim().length > 0 ? raw.name : '未命名群聊',
     brief: typeof raw.brief === 'string' ? raw.brief : '',
+    characterIds,
     memberIds,
     owner: normalizeOwner(raw.owner ?? {}, null),
     policy: normalizePolicy(raw.policy),
@@ -856,54 +1164,26 @@ export function normalizeOwner(raw, members = null) {
 
 
 /**
- * Read one member directory.
- * @param {string} groupDir - group directory.
- * @param {string} memberId - member id.
- * @returns {Promise<object>} member document with settings.
+ * Read one character directory.
+ * @param {string} parentDir - `characters/` directory.
+ * @param {string} characterId - character id.
+ * @returns {Promise<object>} character document with settings.
  */
-async function readMember(groupDir, memberId) {
-  if (!MEMBER_ID.test(memberId)) {
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      id: String(memberId),
-      name: '未知成员',
-      avatar: null,
-      public: { oneLiner: '', relations: {} },
-      privateRelations: {},
-      extendedEnabled: false,
-      style: '',
-      model: null,
-      core: '',
-      memory: '',
-      extended: '',
-      missing: true,
-    };
+async function readCharacter(parentDir, characterId) {
+  if (!CHARACTER_ID.test(characterId)) {
+    return missingCharacter(String(characterId));
   }
-  const dir = path.join(groupDir, 'members', memberId);
+  const dir = path.join(parentDir, characterId);
   const card = await readJson(path.join(dir, 'card.json'));
   const core = await readText(path.join(dir, 'setting', 'core.md'));
   const extended = await readText(path.join(dir, 'setting', 'extended.md'));
   const memory = await readText(path.join(dir, 'setting', 'memory.md'));
   if (card === null) {
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      id: memberId,
-      name: '未知成员',
-      avatar: null,
-      public: { oneLiner: '', relations: {} },
-      privateRelations: {},
-      extendedEnabled: false,
-      style: '',
-      model: null,
-      core,
-      extended,
-      memory: '',
-      missing: true,
-    };
+    return { ...missingCharacter(characterId), core, extended, memory };
   }
   return {
     schemaVersion: typeof card.schemaVersion === 'number' ? card.schemaVersion : SCHEMA_VERSION,
-    id: memberId,
+    id: characterId,
     name: typeof card.name === 'string' && card.name.trim().length > 0 ? card.name : '未知成员',
     avatar: typeof card.avatar === 'string' ? card.avatar : null,
     public: {
@@ -919,6 +1199,63 @@ async function readMember(groupDir, memberId) {
     memory,
     missing: false,
   };
+}
+
+/**
+ * Alias used by the v1 migration for a legacy `members/` directory.
+ * @type {typeof readCharacter}
+ */
+const readCharacterAt = readCharacter;
+
+/**
+ * Placeholder for a missing or malformed character record.
+ * @param {string} id - character id.
+ * @returns {object} placeholder.
+ */
+function missingCharacter(id) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    id: String(id),
+    name: '未知成员',
+    avatar: null,
+    public: { oneLiner: '', relations: {} },
+    privateRelations: {},
+    extendedEnabled: false,
+    style: '',
+    model: null,
+    core: '',
+    memory: '',
+    extended: '',
+    missing: true,
+  };
+}
+
+/**
+ * Persist one character's card and setting files.
+ * @param {string} dir - character directory.
+ * @param {object} character - character document.
+ * @returns {Promise<void>} completion.
+ */
+async function writeCharacterAt(dir, character) {
+  const card = {
+    schemaVersion: SCHEMA_VERSION,
+    id: character.id,
+    name: character.name,
+    avatar: character.avatar ?? null,
+    public: {
+      oneLiner: character.public?.oneLiner ?? '',
+      relations: character.public?.relations ?? {},
+    },
+    privateRelations: character.privateRelations ?? {},
+    style: character.style ?? '',
+    extendedEnabled: character.extendedEnabled === true,
+    model: normalizeModel(character.model),
+  };
+  await fs.mkdir(path.join(dir, 'setting'), { recursive: true });
+  await writeJson(path.join(dir, 'card.json'), card);
+  await writeText(path.join(dir, 'setting', 'core.md'), character.core ?? '');
+  await writeText(path.join(dir, 'setting', 'extended.md'), character.extended ?? '');
+  await writeText(path.join(dir, 'setting', 'memory.md'), character.memory ?? '');
 }
 
 /**

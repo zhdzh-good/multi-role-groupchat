@@ -9,6 +9,8 @@ window.__ModuleLoader__.load({
     const NS = 'groupchat';
     const PANEL_ID = 'groupchat';
     const SELECTED_KEY = 'dsh.groupchat.selected.v1';
+    const SYNC_CHANNEL = 'dsh.groupchat.sync.v1';
+    const SYNC_KEY = 'dsh.groupchat.sync.v1';
 
     const CSS = `
 .mgc-page{position:relative;box-sizing:border-box;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base);font-size:14px;line-height:1.6;overflow:hidden}
@@ -119,6 +121,9 @@ window.__ModuleLoader__.load({
 .mgc-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
 .mgc-label{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary)}
 .mgc-hint{font-size:11px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.mgc-memoryHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mgc-btnSmall{height:24px;padding:0 8px;border-radius:7px;font-size:11px}
+.mgc-privateWarning{margin:0 0 12px;padding:8px 10px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 10%,transparent);color:var(--dsw-alias-state-warn-primary);font-size:11px;line-height:17px}
 .mgc-input,.mgc-select,.mgc-textarea2{display:block;width:100%;border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;padding:7px 10px;outline:none}
 .mgc-input:focus,.mgc-select:focus,.mgc-textarea2:focus{border-color:var(--dsw-alias-brand-primary)}
 .mgc-input:disabled,.mgc-textarea2:disabled,.mgc-select:disabled{opacity:.55}
@@ -176,6 +181,7 @@ window.__ModuleLoader__.load({
 @keyframes mgcSpin{to{transform:rotate(360deg)}}
 .mgc-tableHead{display:flex;align-items:center;gap:8px;padding:4px 2px 10px;color:var(--dsw-alias-label-secondary);font-size:11px}
 .mgc-pathText{word-break:break-all;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:17px}
+.mgc-routeDiag{display:flex;flex-direction:column;gap:2px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;word-break:break-word}
 .mgc-dangerZone{margin-top:24px;padding-top:16px;border-top:.5px solid var(--dsw-alias-border-l1)}
 .mgc-dangerTitle{margin:0 0 6px;font-size:13px;font-weight:600;line-height:20px;color:var(--dsw-alias-state-error-primary)}
 .mgc-dangerDesc{margin:0 0 10px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
@@ -395,6 +401,13 @@ color-scheme:dark;
       'create.brief': '群简介',
       'create.briefPlaceholder': '场景、气氛、开场前提。（可空）',
       'create.members': '成员（2–3 个）',
+      'create.fromLibrary': '从角色库选择',
+      'create.newCharacters': '新建角色并建群',
+      'create.selectHint': '勾选 2–3 个角色。角色档案是全局的，之后改一次所有群同步。',
+      'create.selected': '已选 {n} / 3',
+      'create.selectAtLeastTwo': '请选择 2–3 个角色。',
+      'create.selectTooMany': '最多选择 3 个角色。',
+      'create.noLibrary': '角色库还没有角色，可以先新建角色，或直接用下面的“新建角色并建群”。',
       'create.memberN': '成员 {n}',
       'create.memberName': '显示名',
       'create.memberNamePlaceholder': '例如：林晚',
@@ -459,7 +472,8 @@ color-scheme:dark;
       'manage.close': '关闭',
       'manage.tab.group': '群设置',
       'manage.tab.owner': '我的角色',
-      'manage.tab.members': '成员',
+      'manage.tab.members': '群成员',
+      'manage.tab.characters': '角色库',
       'manage.tab.export': '导出',
       'common.save': '保存',
       'common.saving': '保存中…',
@@ -490,6 +504,18 @@ color-scheme:dark;
       'group.budgetTitle': '预算',
       'group.maxInputTokens': '输入 token 上限',
       'group.maxOutputTokens': '输出 token 上限',
+      'group.lastRoute': '最近一次路由（诊断）',
+      'group.lastRouteNone': '还没有路由记录。',
+      'group.routeTargets': '目标：{names}',
+      'group.routeBystanders': '旁听：{names}',
+      'group.routeMethod': '方式：{method}',
+      'group.routeReason': '原因：{reason}',
+      'route.method.explicit': '@ / 点名',
+      'route.method.pronoun': '你 / 您',
+      'route.method.continuation': '短续接',
+      'route.method.model': '模型分类',
+      'route.method.fallback': '本地兜底',
+      'route.method.owner': '交还本人',
       'group.dataDir': '数据目录',
       'group.defaultModel': '宿主默认：{model}',
       'group.noDefaultModel': '宿主还没有选择默认模型',
@@ -529,8 +555,29 @@ color-scheme:dark;
       'owner.overLimit': '超出建议长度 {n} 字：仍会保存，但会挤占上下文。',
       'owner.save': '保存角色档案',
       'members.optionalHint': '头像、说话方式、关系、扩展设定与模型覆盖是可选项，不影响新建时的基础档案。',
-      'members.title': '成员',
-      'members.add': '新增成员',
+      'library.title': '角色库',
+      'library.new': '新建角色',
+      'library.edit': '编辑角色',
+      'library.empty': '角色库还是空的。先建一个角色，再拉群。',
+      'library.hint': '角色是全局资产；群只引用角色，不再复制档案。',
+      'library.usage': '用于 {n} 个群',
+      'library.inUse': '还在群里使用，先移出群再删除。',
+      'library.deleteConfirm': '确定删除角色“{name}”？此操作不可撤销。',
+      'library.delete': '删除角色',
+      'library.copy': '复制',
+      'library.import': '导入角色卡',
+      'library.importHint': 'JSON 角色卡；关系按当前角色库里的名字映射。',
+      'library.imported': '角色卡已载入，确认后保存。',
+      'library.saved': '角色已保存，所有引用它的群会同步。',
+      'members.title': '群成员',
+      'members.add': '新建角色',
+      'members.pull': '从角色库拉人',
+      'members.pullTitle': '拉角色进群',
+      'members.pullHint': '只显示还没在这个群里的角色。一个群最多 3 人。',
+      'members.noAvailable': '角色库里的角色都已经在这个群里了。',
+      'members.remove': '移出群聊',
+      'members.removeHint': '只移出这个群，不会删除角色档案。',
+      'members.libraryHint': '这里只管理本群成员；角色档案请到「角色库」编辑。',
       'members.editing': '编辑 {name}',
       'members.new': '新成员',
       'members.avatar': '头像',
@@ -552,6 +599,8 @@ color-scheme:dark;
       'members.memoryHint': '手动维护的长期记忆，例如“阿明最近失业，我不想点破”。只在该成员的 prompt 尾部出现。',
       'members.memoryPlaceholder': '例如：阿明最近失业了，但我不想点破。',
       'members.memoryCount': '{n} / 4000',
+      'members.memoryClear': '清空',
+      'members.memoryClearConfirm': '清空这份私有记忆？点击「保存成员」后才会生效。',
       'members.privateExport': '导出时包含私有记忆',
       'members.privateExportHint': '默认关闭；开启后导出的成员卡会含私有内容，请妥善保管。',
       'members.core': '核心设定（每轮注入）',
@@ -577,12 +626,14 @@ color-scheme:dark;
       'export.filename': '群聊记录.md',
       'export.failed': '导出失败',
       'export.markdownTitle': 'Markdown 聊天记录',
+      'export.privateNote': 'Markdown 聊天记录永远不包含私有记忆和私人关系。要备份私有内容，请在上方导出角色卡并勾选「包含私有记忆」。',
       'portable.title': '角色与群配置',
       'portable.hint': '导出 JSON 备份，或从备份导入为一个新群；不包含消息记录、钉住和导出历史。',
       'portable.importOnlyHint': '选择之前导出的 JSON 群配置，预览后导入为一个新群。',
       'portable.includeAvatars': '包含头像',
       'portable.includePrivate': '包含私有记忆与私人关系',
       'portable.privateNote': '默认不导出。勾选后文件会包含成员的私有记忆和私人关系，请勿分享给他人。',
+      'portable.privateWarning': '注意：这个文件包含私有记忆和私人关系。不要分享，也不要提交到公开仓库。',
       'portable.avatarNote': '头像会让文件变大；关闭后仍保留名字、设定和关系。',
       'portable.exportGroup': '导出群配置',
       'portable.exporting': '导出中…',
@@ -638,6 +689,13 @@ color-scheme:dark;
       'create.brief': 'Brief',
       'create.briefPlaceholder': 'Scene, mood, premise. Optional.',
       'create.members': 'Members (2–3)',
+      'create.fromLibrary': 'Pick from library',
+      'create.newCharacters': 'Create characters and group',
+      'create.selectHint': 'Select 2–3 characters. Profiles are global, so one edit updates every group.',
+      'create.selected': 'Selected {n} / 3',
+      'create.selectAtLeastTwo': 'Select 2–3 characters.',
+      'create.selectTooMany': 'Select at most 3 characters.',
+      'create.noLibrary': 'The library is empty. Create a character here, or use “Create characters and group” below.',
       'create.memberN': 'Member {n}',
       'create.memberName': 'Display name',
       'create.memberNamePlaceholder': 'e.g. Lin Wan',
@@ -702,7 +760,8 @@ color-scheme:dark;
       'manage.close': 'Close',
       'manage.tab.group': 'Settings',
       'manage.tab.owner': 'My character',
-      'manage.tab.members': 'Members',
+      'manage.tab.members': 'Group members',
+      'manage.tab.characters': 'Characters',
       'manage.tab.export': 'Export',
       'common.save': 'Save',
       'common.saving': 'Saving…',
@@ -733,6 +792,18 @@ color-scheme:dark;
       'group.budgetTitle': 'Budget',
       'group.maxInputTokens': 'Input token limit',
       'group.maxOutputTokens': 'Output token limit',
+      'group.lastRoute': 'Last route (diagnostics)',
+      'group.lastRouteNone': 'No route recorded yet.',
+      'group.routeTargets': 'Targets: {names}',
+      'group.routeBystanders': 'Bystanders: {names}',
+      'group.routeMethod': 'Method: {method}',
+      'group.routeReason': 'Reason: {reason}',
+      'route.method.explicit': '@ / name',
+      'route.method.pronoun': 'you / 您',
+      'route.method.continuation': 'short continuation',
+      'route.method.model': 'model classifier',
+      'route.method.fallback': 'local fallback',
+      'route.method.owner': 'hand back to owner',
       'group.dataDir': 'Data directory',
       'group.defaultModel': 'Host default: {model}',
       'group.noDefaultModel': 'The Host has no default model selected',
@@ -772,8 +843,29 @@ color-scheme:dark;
       'owner.overLimit': '{n} characters over the recommendation: saving still works, but context shrinks.',
       'owner.save': 'Save character profile',
       'members.optionalHint': 'Avatar, voice/style, relationships, extended settings, and model overrides are optional; they do not change the basic profile entered at creation.',
-      'members.title': 'Members',
-      'members.add': 'Add member',
+      'library.title': 'Character library',
+      'library.new': 'New character',
+      'library.edit': 'Edit character',
+      'library.empty': 'The library is empty. Create a character first, then pull it into a group.',
+      'library.hint': 'Characters are global assets; groups reference them instead of copying profiles.',
+      'library.usage': 'Used by {n} group(s)',
+      'library.inUse': 'Still used by a group. Remove it from the group before deleting.',
+      'library.deleteConfirm': 'Delete character “{name}”? This cannot be undone.',
+      'library.delete': 'Delete character',
+      'library.copy': 'Duplicate',
+      'library.import': 'Import card',
+      'library.importHint': 'JSON character card; relations map by names already in the library.',
+      'library.imported': 'Card loaded; review it before saving.',
+      'library.saved': 'Character saved; every group using it updates.',
+      'members.title': 'Group members',
+      'members.add': 'New character',
+      'members.pull': 'Pull from library',
+      'members.pullTitle': 'Add characters to this group',
+      'members.pullHint': 'Only characters not already in this group are shown. A group holds up to 3.',
+      'members.noAvailable': 'Every character in the library is already in this group.',
+      'members.remove': 'Remove from group',
+      'members.removeHint': 'Removes the character from this group only; the profile stays in the library.',
+      'members.libraryHint': 'This tab manages the group roster. Edit profiles in the Characters tab.',
       'members.editing': 'Editing {name}',
       'members.new': 'New member',
       'members.avatar': 'Avatar',
@@ -795,6 +887,8 @@ color-scheme:dark;
       'members.memoryHint': 'Manually curated long-term memory, e.g. “阿明 lost his job recently, but I will not bring it up.” Injected only into this member\'s tail.',
       'members.memoryPlaceholder': 'e.g. 阿明 lost his job recently, but I will not bring it up.',
       'members.memoryCount': '{n} / 4,000',
+      'members.memoryClear': 'Clear',
+      'members.memoryClearConfirm': 'Clear this private memory? Save the member to apply the change.',
       'members.privateExport': 'Include private memory when exporting',
       'members.privateExportHint': 'Off by default; turning it on puts private content in the member card file, so store it safely.',
       'members.core': 'Core setting (injected every turn)',
@@ -820,12 +914,14 @@ color-scheme:dark;
       'export.filename': 'group-chat.md',
       'export.failed': 'Export failed',
       'export.markdownTitle': 'Markdown transcript',
+      'export.privateNote': 'Markdown transcripts never include private memory or private relationships. To back up private content, export a character card above with “include private memory” checked.',
       'portable.title': 'Character and group files',
       'portable.hint': 'Export a JSON backup, or import one as a new group. Messages, pins, and export history are not included.',
       'portable.importOnlyHint': 'Choose a previously exported JSON group config, preview it, then import it as a new group.',
       'portable.includeAvatars': 'Include avatars',
       'portable.includePrivate': 'Include private memory and relationships',
       'portable.privateNote': 'Off by default. When enabled, the file contains private memory and private relationships; do not share it.',
+      'portable.privateWarning': 'Warning: this file contains private memory and private relationships. Do not share it or commit it to a public repository.',
       'portable.avatarNote': 'Avatars make the file larger; names, settings, and relations remain without them.',
       'portable.exportGroup': 'Export group config',
       'portable.exporting': 'Exporting…',
@@ -976,6 +1072,7 @@ color-scheme:dark;
         loading: true,
         error: null,
         groups: [],
+        characters: [],
         selectedId: null,
         group: null,
         owner: defaultOwner(),
@@ -989,6 +1086,7 @@ color-scheme:dark;
         latestMessageId: null,
         latestMemberMessageId: null,
         activeTurn: null,
+        lastRoute: null,
         defaultModel: null,
         dataDir: null,
         warnings: [],
@@ -1033,6 +1131,72 @@ color-scheme:dark;
         }
       }
 
+      let syncChannel = null;
+      let syncTimer = null;
+      let syncPending = false;
+
+      /** Tell other tabs that persisted data changed. @returns {void} */
+      function publishChange() {
+        if (syncChannel !== null) {
+          try {
+            syncChannel.postMessage({ at: Date.now() });
+          } catch {
+            /* channel may be closing */
+          }
+          return;
+        }
+        try {
+          window.localStorage.setItem(SYNC_KEY, `${Date.now()}:${Math.random()}`);
+        } catch {
+          /* storage may be unavailable */
+        }
+      }
+
+      /** Refresh from the Host after another tab changed persisted data. @returns {void} */
+      function scheduleSyncReload() {
+        if (state.busy) {
+          syncPending = true;
+          return;
+        }
+        if (syncTimer !== null) clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => {
+          syncTimer = null;
+          if (state.busy) {
+            syncPending = true;
+            return;
+          }
+          load(state.selectedId, { quiet: true });
+        }, 250);
+      }
+
+      /** Run a refresh that arrived while this tab was generating. @returns {void} */
+      function flushSyncReload() {
+        if (!syncPending) return;
+        syncPending = false;
+        scheduleSyncReload();
+      }
+
+      /** Subscribe to cross-tab change notifications. @returns {void} */
+      function startSync() {
+        try {
+          if (typeof BroadcastChannel === 'function') {
+            syncChannel = new BroadcastChannel(SYNC_CHANNEL);
+            syncChannel.onmessage = () => scheduleSyncReload();
+          }
+        } catch {
+          syncChannel = null;
+        }
+        if (syncChannel === null) {
+          window.addEventListener('storage', (event) => {
+            if (event.key === SYNC_KEY && event.newValue !== null) scheduleSyncReload();
+          });
+        }
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') scheduleSyncReload();
+        });
+      }
+      startSync();
+
       /** @param {object} selected - state payload group. @returns {void} */
       function applySelected(selected) {
         if (selected === null || selected === undefined) {
@@ -1049,6 +1213,7 @@ color-scheme:dark;
             latestMessageId: null,
             latestMemberMessageId: null,
             activeTurn: null,
+            lastRoute: null,
             warnings: [],
           });
           return;
@@ -1066,6 +1231,7 @@ color-scheme:dark;
           latestMessageId: selected.latestMessageId ?? null,
           latestMemberMessageId: selected.latestMemberMessageId ?? null,
           activeTurn: selected.activeTurn ?? null,
+          lastRoute: selected.lastRoute ?? null,
           warnings: selected.warnings ?? [],
         });
       }
@@ -1094,6 +1260,7 @@ color-scheme:dark;
             loading: false,
             error: null,
             groups: data.groups ?? [],
+            characters: data.characters ?? [],
             selectedId,
             defaultModel: data.defaultModel ?? null,
             dataDir: data.dataDir ?? null,
@@ -1167,6 +1334,10 @@ color-scheme:dark;
           case 'delta': {
             if (state.streaming === null) break;
             emit({ streaming: { ...state.streaming, text: state.streaming.text + event.text } });
+            break;
+          }
+          case 'route': {
+            emit({ lastRoute: event.route });
             break;
           }
           case 'notice': {
@@ -1255,6 +1426,8 @@ color-scheme:dark;
           activeAbort = null;
           const keepStopped = state.streaming !== null && state.streaming.stopped === true;
           emit({ busy: false, stopping: false, ...(keepStopped ? {} : { streaming: null }) });
+          publishChange();
+          flushSyncReload();
         }
       }
 
@@ -1279,6 +1452,7 @@ color-scheme:dark;
         } catch {
           /* the fetch abort already stops generation */
         }
+        publishChange();
       }
 
       /** @param {string} messageId - newest message. @returns {Promise<void>} completion. */
@@ -1300,6 +1474,7 @@ color-scheme:dark;
           if (!response.ok) throw new Error(await errorMessage(response));
           const data = await response.json();
           applySelected(data.state);
+          publishChange();
         } catch (error) {
           emit({ actionError: error instanceof Error ? error.message : String(error) });
         }
@@ -1318,6 +1493,7 @@ color-scheme:dark;
         const data = await response.json();
         applySelected(data.state);
         emit({ groups: state.groups.map((group) => (group.id === data.state.group.id ? { ...group, name: data.state.group.name, brief: data.state.group.brief } : group)) });
+        publishChange();
         return data.state.group;
       }
 
@@ -1333,6 +1509,7 @@ color-scheme:dark;
         if (!response.ok) throw new Error(await errorMessage(response));
         const data = await response.json();
         applySelected(data.state);
+        publishChange();
         return data.state.owner;
       }
 
@@ -1373,10 +1550,88 @@ color-scheme:dark;
           actionNotice: null,
         });
         await load(remaining[0]?.id ?? null);
+        publishChange();
         return data;
       }
 
       /** @param {object} member - member fields, with memberId to edit. @returns {Promise<object>} saved member. */
+      /**
+       * Create or edit one global character.
+       * @param {object} character - character fields.
+       * @returns {Promise<object>} saved character.
+       */
+      async function saveCharacter(character) {
+        const response = await fetch('api/groupchat.character-save', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(character),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const data = await response.json();
+        await load(state.selectedId);
+        publishChange();
+        return data.character;
+      }
+
+      /**
+       * Delete one global character. Characters used by a group are refused.
+       * @param {string} characterId - character id.
+       * @returns {Promise<void>} completion.
+       */
+      async function deleteCharacter(characterId) {
+        const response = await fetch('api/groupchat.character-delete', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ characterId }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        await load(state.selectedId);
+        publishChange();
+      }
+
+      /**
+       * Add characters to the selected group.
+       * @param {string[]} characterIds - character ids.
+       * @returns {Promise<void>} completion.
+       */
+      async function addGroupCharacters(characterIds) {
+        if (state.group === null) throw new Error('没有选中的群。');
+        const response = await fetch('api/groupchat.group-characters', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ groupId: state.group.id, action: 'add', characterIds }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const data = await response.json();
+        applySelected(data.state);
+        await load(state.group.id);
+        publishChange();
+      }
+
+      /**
+       * Remove one character from the selected group; the character stays in
+       * the library.
+       * @param {string} characterId - character id.
+       * @returns {Promise<void>} completion.
+       */
+      async function removeGroupCharacter(characterId) {
+        if (state.group === null) throw new Error('没有选中的群。');
+        const response = await fetch('api/groupchat.group-characters', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ groupId: state.group.id, action: 'remove', characterId }),
+        });
+        if (!response.ok) throw new Error(await errorMessage(response));
+        const data = await response.json();
+        applySelected(data.state);
+        await load(state.group.id);
+        publishChange();
+      }
+
       async function saveMember(member) {
         if (state.group === null) throw new Error('没有选中的群。');
         const response = await fetch('api/groupchat.member-save', {
@@ -1388,6 +1643,7 @@ color-scheme:dark;
         if (!response.ok) throw new Error(await errorMessage(response));
         const data = await response.json();
         applySelected(data.state);
+        publishChange();
         return data.member;
       }
 
@@ -1405,6 +1661,7 @@ color-scheme:dark;
         emit({ loaded: true, loading: false, error: null });
         applySelected(data.state);
         await load(data.groupId);
+        publishChange();
         return data;
       }
 
@@ -1467,6 +1724,7 @@ color-scheme:dark;
         emit({ loaded: true, loading: false, error: null });
         applySelected(data.state);
         await load(data.groupId);
+        publishChange();
         return data;
       }
 
@@ -1478,6 +1736,16 @@ color-scheme:dark;
        * @returns {Promise<object>} normalized form fields.
        */
       async function previewCharacterImport(text, target, memberId = null) {
+        if (target === 'character') {
+          const response = await fetch('api/groupchat.character-preview', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          if (!response.ok) throw new Error(await errorMessage(response));
+          return response.json();
+        }
         if (state.group === null) throw new Error('没有选中的群。');
         const response = await fetch('api/groupchat.portable-character-preview', {
           method: 'POST',
@@ -1535,6 +1803,10 @@ color-scheme:dark;
         saveGroup,
         saveOwner,
         saveMember,
+        saveCharacter,
+        deleteCharacter,
+        addGroupCharacters,
+        removeGroupCharacter,
         deleteGroup,
         createGroup,
         exportMarkdown,
@@ -2383,6 +2655,7 @@ color-scheme:dark;
         }
         return h(CreateGroupForm, {
           store,
+          state,
           t,
           embedded: false,
           allowCancel: state.groups.length > 0 && creating,
@@ -2393,6 +2666,7 @@ color-scheme:dark;
       if (creating) {
         return h(CreateGroupForm, {
           store,
+          state,
           t,
           embedded: false,
           allowCancel: true,
@@ -2711,6 +2985,10 @@ color-scheme:dark;
           setSaving(false);
         }
       };
+      const route = state.lastRoute;
+      const routeNames = (ids) => (Array.isArray(ids) && ids.length > 0
+        ? ids.map((id) => state.members.find((member) => member.id === id)?.name ?? id).join('、')
+        : t('common.none'));
       const numberField = (key, label, options = {}) =>
         h(
           'div',
@@ -2810,6 +3088,21 @@ color-scheme:dark;
           numberField('maxOutputTokens', t('group.maxOutputTokens')),
         ),
         h('div', { className: 'mgc-hint', style: { marginBottom: '16px' } }, t('group.budgetHint')),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('div', { className: 'mgc-label' }, t('group.lastRoute')),
+          route === null
+            ? h('div', { className: 'mgc-hint' }, t('group.lastRouteNone'))
+            : h(
+                'div',
+                { className: 'mgc-routeDiag' },
+                h('div', null, t('group.routeTargets', { names: routeNames(route.targets) })),
+                h('div', null, t('group.routeBystanders', { names: routeNames(route.bystanders) })),
+                h('div', null, t('group.routeMethod', { method: t(`route.method.${route.method}`) })),
+                route.reason ? h('div', { className: 'mgc-hint' }, t('group.routeReason', { reason: route.reason })) : null,
+              ),
+        ),
         h(
           'div',
           { className: 'mgc-field' },
@@ -2987,7 +3280,8 @@ color-scheme:dark;
      * @param {object} props - form inputs.
      * @returns {any} element.
      */
-    function MemberForm({ member, members, state, t, store, onDone, onCancel }) {
+    function MemberForm({ member, members, state, t, store, onDone, onCancel, mode = 'member' }) {
+      const library = mode === 'character';
       const others = members.filter((candidate) => candidate.id !== member?.id);
       const [name, setName] = useState(member?.name ?? '');
       const [avatar, setAvatar] = useState(member?.avatar ?? '');
@@ -3016,8 +3310,13 @@ color-scheme:dark;
       const extendedLength = [...extended].length;
       const styleLength = [...style].length;
       const memoryLength = [...memory].length;
+      const clearMemory = () => {
+        if (memory.length === 0) return;
+        if (!window.confirm(t('members.memoryClearConfirm'))) return;
+        setMemory('');
+      };
       const exportCard = async () => {
-        if (member === null) return;
+        if (member === null || library) return;
         setCardBusy(true);
         setCardMessage(null);
         try {
@@ -3036,6 +3335,7 @@ color-scheme:dark;
         }
       };
       const importCard = async (event) => {
+        if (library) return;
         const file = event.target.files?.[0];
         event.target.value = '';
         if (file === undefined) return;
@@ -3085,8 +3385,7 @@ color-scheme:dark;
         setSaving(true);
         setError(null);
         try {
-          await store.saveMember({
-            ...(member === null ? {} : { memberId: member.id }),
+          const fields = {
             name: name.trim(),
             avatar,
             oneLiner,
@@ -3098,7 +3397,15 @@ color-scheme:dark;
             extended,
             extendedEnabled,
             model: inheritModel ? null : { provider: provider.trim(), model: model.trim() },
-          });
+          };
+          if (library) {
+            await store.saveCharacter({ ...(member === null ? {} : { id: member.id }), ...fields });
+          } else {
+            await store.saveMember({
+              ...(member === null ? {} : { memberId: member.id }),
+              ...fields,
+            });
+          }
           onDone();
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : String(reason));
@@ -3109,31 +3416,35 @@ color-scheme:dark;
       return h(
         'div',
         null,
-        h(
-          'div',
-          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '8px' } },
-          member === null
-            ? null
-            : h(
+        library
+          ? h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('members.libraryHint'))
+          : h(
+              'div',
+              { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '8px' } },
+              member === null
+                ? null
+                : h(
+                    'button',
+                    { type: 'button', className: 'mgc-btn', onClick: exportCard, disabled: cardBusy },
+                    h(IconDownload, { size: 12 }),
+                    t('portable.characterExport'),
+                  ),
+              h(
                 'button',
-                { type: 'button', className: 'mgc-btn', onClick: exportCard, disabled: cardBusy },
-                h(IconDownload, { size: 12 }),
-                t('portable.characterExport'),
+                { type: 'button', className: 'mgc-btn', onClick: () => cardInput.current?.click(), disabled: cardBusy },
+                cardBusy ? t('portable.reading') : t('portable.characterImport'),
               ),
-          h(
-            'button',
-            { type: 'button', className: 'mgc-btn', onClick: () => cardInput.current?.click(), disabled: cardBusy },
-            cardBusy ? t('portable.reading') : t('portable.characterImport'),
-          ),
-        ),
-        h('input', {
-          ref: cardInput,
-          type: 'file',
-          accept: '.json,application/json',
-          style: { display: 'none' },
-          onChange: importCard,
-        }),
-        member === null
+            ),
+        library
+          ? null
+          : h('input', {
+              ref: cardInput,
+              type: 'file',
+              accept: '.json,application/json',
+              style: { display: 'none' },
+              onChange: importCard,
+            }),
+        library || member === null
           ? null
           : h(
               'div',
@@ -3149,8 +3460,9 @@ color-scheme:dark;
                 t('members.privateExport'),
               ),
               h('div', { className: 'mgc-hint' }, t('members.privateExportHint')),
+              includePrivateExport ? h('div', { className: 'mgc-privateWarning' }, t('portable.privateWarning')) : null,
             ),
-        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.characterHint')),
+        library ? null : h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('portable.characterHint')),
         cardMessage === null
           ? null
           : h(
@@ -3308,7 +3620,21 @@ color-scheme:dark;
         h(
           'div',
           { className: 'mgc-field' },
-          h('label', { className: 'mgc-label', htmlFor: 'mgc-member-memory' }, t('members.memory')),
+          h(
+            'div',
+            { className: 'mgc-memoryHead' },
+            h('label', { className: 'mgc-label', htmlFor: 'mgc-member-memory' }, t('members.memory')),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'mgc-btn mgc-btnDanger mgc-btnSmall',
+                onClick: clearMemory,
+                disabled: memoryLength === 0,
+              },
+              t('members.memoryClear'),
+            ),
+          ),
           h('textarea', {
             id: 'mgc-member-memory',
             className: 'mgc-textarea2',
@@ -3388,6 +3714,7 @@ color-scheme:dark;
         }
       };
       const importCard = async (event) => {
+        if (library) return;
         const file = event.target.files?.[0];
         event.target.value = '';
         if (file === undefined) return;
@@ -3573,15 +3900,297 @@ color-scheme:dark;
     }
 
     /**
-     * Member list plus the edit form.
+     * Pick characters from the global library that are not yet in this group.
+     * @param {{state: object, t: object, store: object, onDone: Function, onCancel: Function}} props - picker inputs.
+     * @returns {any} element.
+     */
+    function GroupCharacterPicker({ state, t, store, onDone, onCancel }) {
+      const memberIds = new Set(state.members.map((member) => member.id));
+      const available = state.characters.filter((character) => !memberIds.has(character.id));
+      const [selected, setSelected] = useState([]);
+      const [error, setError] = useState(null);
+      const [busy, setBusy] = useState(false);
+      const limit = Math.max(0, 3 - state.members.length);
+      const toggle = (id) => {
+        setSelected((current) => {
+          if (current.includes(id)) return current.filter((value) => value !== id);
+          if (current.length >= limit) return current;
+          return [...current, id];
+        });
+      };
+      const submit = async () => {
+        if (selected.length === 0) return;
+        setBusy(true);
+        setError(null);
+        try {
+          await store.addGroupCharacters(selected);
+          onDone();
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(false);
+        }
+      };
+      return h(
+        'div',
+        null,
+        h(
+          'div',
+          { className: 'mgc-sectionHead' },
+          h('h3', { className: 'mgc-cardTitle' }, t('members.pullTitle')),
+          h('button', { type: 'button', className: 'mgc-btn', onClick: onCancel }, t('common.cancel')),
+        ),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('members.pullHint')),
+        available.length === 0
+          ? h('p', { className: 'mgc-hint' }, t('members.noAvailable'))
+          : h(
+              'div',
+              { className: 'mgc-memberList' },
+              available.map((character) =>
+                h(
+                  'label',
+                  { key: character.id, className: 'mgc-memberRow', style: { cursor: 'pointer' } },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: selected.includes(character.id),
+                    disabled: !selected.includes(character.id) && selected.length >= limit,
+                    onChange: () => toggle(character.id),
+                  }),
+                  h(Avatar, { name: character.name, color: avatarColor(state.characters, character.id), small: true, src: character.avatar ?? null }),
+                  h(
+                    'span',
+                    { className: 'mgc-memberText' },
+                    h('span', { className: 'mgc-memberName' }, character.name),
+                    h('span', { className: 'mgc-memberOneLiner' }, character.public?.oneLiner || t('common.none')),
+                  ),
+                ),
+              ),
+            ),
+        error !== null ? h('p', { className: 'mgc-error' }, error) : null,
+        h(
+          'div',
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginTop: '12px' } },
+          h('button', { type: 'button', className: 'mgc-btn mgc-btnPrimary', onClick: submit, disabled: busy || selected.length === 0 }, selected.length > 0 ? `${t('members.pull')} (${selected.length})` : t('members.pull')),
+        ),
+      );
+    }
+
+    /**
+     * Global character library plus the shared character editor.
+     * @param {{state: object, t: object, store: object}} props - library inputs.
+     * @returns {any} element.
+     */
+    function CharacterLibrary({ state, t, store }) {
+      const [editing, setEditing] = useState(null);
+      const [draft, setDraft] = useState(null);
+      const [error, setError] = useState(null);
+      const [notice, setNotice] = useState(null);
+      const [busy, setBusy] = useState(false);
+      const fileInput = useRef(null);
+      const selected = editing === 'new' ? null : state.characters.find((character) => character.id === editing) ?? null;
+      const formMember = draft ?? selected;
+      const started = editing === 'new' || selected !== null || draft !== null;
+      const close = () => {
+        setEditing(null);
+        setDraft(null);
+        setError(null);
+        setNotice(null);
+      };
+      const openNew = () => {
+        setDraft(null);
+        setEditing('new');
+        setError(null);
+        setNotice(null);
+      };
+      const importCard = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (file === undefined) return;
+        if (file.size > PORTABLE_FILE_LIMIT) {
+          setError(t('portable.tooLarge'));
+          return;
+        }
+        setBusy(true);
+        setError(null);
+        setNotice(null);
+        try {
+          const result = await store.previewCharacterImport(await file.text(), 'character');
+          const fields = result.fields;
+          setDraft({
+            name: fields.name ?? '',
+            avatar: fields.avatar ?? '',
+            public: { oneLiner: fields.oneLiner ?? '', relations: { ...(fields.relations ?? {}) } },
+            style: fields.style ?? '',
+            memory: fields.memory ?? '',
+            privateRelations: { ...(fields.privateRelations ?? {}) },
+            core: fields.core ?? '',
+            extended: fields.extended ?? '',
+            extendedEnabled: fields.extendedEnabled === true,
+            model: fields.model ?? null,
+          });
+          setEditing('new');
+          setNotice({ text: t('library.imported'), warnings: result.warnings ?? [] });
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(false);
+        }
+      };
+      const copy = async (character) => {
+        setBusy(true);
+        setError(null);
+        setNotice(null);
+        try {
+          const base = [...character.name].slice(0, 12).join('');
+          await store.saveCharacter({
+            name: `${base}·副本`,
+            oneLiner: character.public?.oneLiner ?? '',
+            relations: character.public?.relations ?? {},
+            privateRelations: character.privateRelations ?? {},
+            style: character.style ?? '',
+            memory: character.memory ?? '',
+            core: character.core ?? '',
+            extended: character.extended ?? '',
+            extendedEnabled: character.extendedEnabled === true,
+            avatar: character.avatar ?? '',
+            model: character.model ?? null,
+          });
+          setNotice({ text: t('library.saved'), warnings: [] });
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setBusy(false);
+        }
+      };
+      if (started) {
+        return h(
+          'div',
+          null,
+          h(
+            'div',
+            { className: 'mgc-sectionHead' },
+            h('h3', { className: 'mgc-cardTitle' }, formMember === null ? t('library.new') : draft !== null ? t('library.imported') : t('library.edit')),
+            h('button', { type: 'button', className: 'mgc-btn', onClick: close }, t('common.cancel')),
+          ),
+          h(MemberForm, {
+            key: draft !== null ? 'imported-character' : selected?.id ?? 'new-character',
+            member: formMember,
+            members: state.characters,
+            state,
+            t,
+            store,
+            mode: 'character',
+            onDone: close,
+          }),
+        );
+      }
+      const remove = async (character) => {
+        if (!window.confirm(t('library.deleteConfirm', { name: character.name }))) return;
+        setError(null);
+        setNotice(null);
+        try {
+          await store.deleteCharacter(character.id);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
+      };
+      return h(
+        'div',
+        null,
+        h(
+          'div',
+          { className: 'mgc-sectionHead' },
+          h('h3', { className: 'mgc-cardTitle' }, t('library.title')),
+          h(
+            'div',
+            { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+            h('button', { type: 'button', className: 'mgc-btn', onClick: openNew }, t('library.new')),
+            h('button', { type: 'button', className: 'mgc-btn', onClick: () => fileInput.current?.click(), disabled: busy }, t('library.import')),
+          ),
+        ),
+        h('input', {
+          ref: fileInput,
+          type: 'file',
+          accept: '.json,application/json',
+          style: { display: 'none' },
+          onChange: importCard,
+        }),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('library.hint')),
+        h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('library.importHint')),
+        state.characters.length === 0
+          ? h('p', { className: 'mgc-hint' }, t('library.empty'))
+          : h(
+              'div',
+              { className: 'mgc-memberList' },
+              state.characters.map((character) =>
+                h(
+                  'div',
+                  { key: character.id, className: 'mgc-memberRow', style: { cursor: 'default' } },
+                  h(Avatar, { name: character.name, color: avatarColor(state.characters, character.id), small: true, src: character.avatar ?? null }),
+                  h(
+                    'span',
+                    { className: 'mgc-memberText' },
+                    h('span', { className: 'mgc-memberName' }, character.name),
+                    h('span', { className: 'mgc-memberOneLiner' }, character.public?.oneLiner || t('common.none')),
+                    h('span', { className: 'mgc-hint' }, character.usageGroups?.length > 0
+                      ? `${t('library.usage', { n: character.usageGroups.length })} · ${character.usageGroups.map((group) => group.name).join('、')}`
+                      : t('library.usage', { n: 0 })),
+                  ),
+                  h('button', { type: 'button', className: 'mgc-btn', onClick: () => setEditing(character.id) }, t('library.edit')),
+                  h('button', { type: 'button', className: 'mgc-btn', onClick: () => copy(character), disabled: busy }, t('library.copy')),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'mgc-btn mgc-btnDanger',
+                      disabled: (character.usageGroups?.length ?? 0) > 0,
+                      title: (character.usageGroups?.length ?? 0) > 0 ? t('library.inUse') : t('library.delete'),
+                      onClick: () => remove(character),
+                    },
+                    t('library.delete'),
+                  ),
+                ),
+              ),
+            ),
+        notice !== null
+          ? h(
+              'div',
+              { className: 'mgc-success' },
+              notice.text,
+              notice.warnings?.length > 0 ? h('div', { className: 'mgc-warnText' }, notice.warnings.join(' ')) : null,
+            )
+          : null,
+        error !== null ? h('p', { className: 'mgc-error' }, error) : null,
+      );
+    }
+
+    /**
+     * Group roster plus the shared member editor and library picker.
      * @param {{state: object, t: object, store: object}} props - editor inputs.
      * @returns {any} element.
      */
     function MembersEditor({ state, t, store }) {
       const [editing, setEditing] = useState(null);
+      const [pulling, setPulling] = useState(false);
+      const [error, setError] = useState(null);
       const selected = editing === 'new' ? null : state.members.find((member) => member.id === editing) ?? null;
       const started = editing === 'new' || selected !== null;
+      const remove = async () => {
+        if (selected === null || state.members.length <= 2) return;
+        setError(null);
+        try {
+          await store.removeGroupCharacter(selected.id);
+          setEditing(null);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
+      };
+      if (pulling) {
+        return h(GroupCharacterPicker, { state, t, store, onDone: () => setPulling(false), onCancel: () => setPulling(false) });
+      }
       if (!started) {
+        const memberIds = new Set(state.members.map((member) => member.id));
+        const available = state.characters.some((character) => !memberIds.has(character.id));
         return h(
           'div',
           null,
@@ -3590,14 +4199,18 @@ color-scheme:dark;
             { className: 'mgc-sectionHead' },
             h('h3', { className: 'mgc-cardTitle' }, t('members.title')),
             h(
-              'button',
-              {
-                type: 'button',
-                className: 'mgc-btn',
-                onClick: () => setEditing('new'),
-                disabled: state.members.length >= 3,
-              },
-              t('members.add'),
+              'div',
+              { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+              h(
+                'button',
+                { type: 'button', className: 'mgc-btn', onClick: () => setPulling(true), disabled: state.members.length >= 3 || !available },
+                t('members.pull'),
+              ),
+              h(
+                'button',
+                { type: 'button', className: 'mgc-btn', onClick: () => setEditing('new'), disabled: state.members.length >= 3 },
+                t('members.add'),
+              ),
             ),
           ),
           state.members.length === 0
@@ -3625,7 +4238,8 @@ color-scheme:dark;
                   ),
                 ),
               ),
-          h('div', { className: 'mgc-hint', style: { marginTop: '12px' } }, t('members.atLeastTwo')),
+          error !== null ? h('p', { className: 'mgc-error' }, error) : null,
+          h('div', { className: 'mgc-hint', style: { marginTop: '12px' } }, t('members.libraryHint')),
         );
       }
       return h(
@@ -3639,8 +4253,18 @@ color-scheme:dark;
             { className: 'mgc-cardTitle' },
             selected === null ? t('members.new') : t('members.editing', { name: selected.name }),
           ),
-          h('button', { type: 'button', className: 'mgc-btn', onClick: () => setEditing(null) }, t('common.cancel')),
+          h(
+            'div',
+            { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+            selected !== null && state.members.length > 2
+              ? h('button', { type: 'button', className: 'mgc-btn mgc-btnDanger', onClick: remove }, t('members.remove'))
+              : null,
+            h('button', { type: 'button', className: 'mgc-btn', onClick: () => setEditing(null) }, t('common.cancel')),
+          ),
         ),
+        selected !== null && state.members.length > 2
+          ? h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, t('members.removeHint'))
+          : null,
         h(MemberForm, {
           key: selected?.id ?? 'new',
           member: selected,
@@ -3844,6 +4468,7 @@ color-scheme:dark;
           t('portable.includePrivate'),
         ),
         h('div', { className: 'mgc-hint', style: { marginBottom: '12px' } }, t('portable.privateNote')),
+        includePrivate ? h('div', { className: 'mgc-privateWarning' }, t('portable.privateWarning')) : null,
         h(
           'div',
           { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '10px' } },
@@ -3912,6 +4537,7 @@ color-scheme:dark;
         null,
         h(PortableGroupPanel, { state, t, store }),
         h('div', { className: 'mgc-label', style: { margin: '4px 0 8px' } }, t('export.markdownTitle')),
+        h('div', { className: 'mgc-privateWarning' }, t('export.privateNote')),
         h(
           'label',
           { className: 'mgc-check', style: { marginBottom: '12px' } },
@@ -3965,6 +4591,7 @@ color-scheme:dark;
         ['group', t('manage.tab.group')],
         ['owner', t('manage.tab.owner')],
         ['members', t('manage.tab.members')],
+        ['characters', t('manage.tab.characters')],
         ['export', t('manage.tab.export')],
       ];
       return h(
@@ -4004,6 +4631,7 @@ color-scheme:dark;
           tab === 'group' ? h(GroupSettingsForm, { state, t, store }) : null,
           tab === 'owner' ? h(OwnerForm, { key: state.group.id, state, t, store }) : null,
           tab === 'members' ? h(MembersEditor, { state, t, store }) : null,
+          tab === 'characters' ? h(CharacterLibrary, { state, t, store }) : null,
           tab === 'export' ? h(ExportPanel, { state, t, store }) : null,
         ),
       );
@@ -4014,7 +4642,7 @@ color-scheme:dark;
      * @param {object} props - creation inputs.
      * @returns {any} element.
      */
-    function CreateGroupForm({ store, t, embedded, allowCancel, onCancel, onCreated }) {
+    function CreateGroupForm({ store, state, t, embedded, allowCancel, onCancel, onCreated }) {
       const [name, setName] = useState('');
       const [brief, setBrief] = useState('');
       const [ownerName, setOwnerName] = useState('');
@@ -4024,7 +4652,14 @@ color-scheme:dark;
         { key: 'a', name: '', oneLiner: '', core: '' },
         { key: 'b', name: '', oneLiner: '', core: '' },
       ]);
+      const [mode, setMode] = useState(state.characters.length >= 2 ? 'library' : 'new');
+      const [selectedIds, setSelectedIds] = useState([]);
       const [error, setError] = useState(null);
+      const toggleCharacter = (id) => setSelectedIds((current) => {
+        if (current.includes(id)) return current.filter((value) => value !== id);
+        if (current.length >= 3) return current;
+        return [...current, id];
+      });
       const [saving, setSaving] = useState(false);
       const patchDraft = (key, field, value) =>
         setDrafts((current) => current.map((draft) => (draft.key === key ? { ...draft, [field]: value } : draft)));
@@ -4041,7 +4676,11 @@ color-scheme:dark;
           setError(t('errors.name'));
           return;
         }
-        if (drafts.some((draft) => draft.name.trim().length === 0)) {
+        if (mode === 'library' && (selectedIds.length < 2 || selectedIds.length > 3)) {
+          setError(t('create.selectAtLeastTwo'));
+          return;
+        }
+        if (mode === 'new' && drafts.some((draft) => draft.name.trim().length === 0)) {
           setError(t('errors.members'));
           return;
         }
@@ -4056,11 +4695,15 @@ color-scheme:dark;
               oneLiner: ownerOneLiner,
               setting: ownerSetting,
             },
-            members: drafts.map((draft) => ({
-              name: draft.name.trim(),
-              oneLiner: draft.oneLiner,
-              core: draft.core,
-            })),
+            ...(mode === 'library'
+              ? { characterIds: selectedIds }
+              : {
+                  members: drafts.map((draft) => ({
+                    name: draft.name.trim(),
+                    oneLiner: draft.oneLiner,
+                    core: draft.core,
+                  })),
+                }),
           });
           if (onCreated !== undefined) onCreated();
         } catch (reason) {
@@ -4161,63 +4804,122 @@ color-scheme:dark;
           ),
         ),
         h('div', { className: 'mgc-label', style: { margin: '6px 0 8px' } }, t('create.members')),
-        drafts.map((draft, index) =>
+        h(
+          'div',
+          { className: 'mgc-formActions', style: { justifyContent: 'flex-start', marginBottom: '10px' } },
           h(
-            'div',
-            { key: draft.key, className: 'mgc-card mgc-memberDraft' },
-            h(
-              'div',
-              { className: 'mgc-draftHead' },
-              h('span', { className: 'mgc-draftTitle' }, t('create.memberN', { n: index + 1 })),
-              drafts.length > 2
-                ? h('button', { type: 'button', className: 'mgc-btn mgc-btnDanger', onClick: () => removeMember(draft.key) }, t('create.remove'))
-                : null,
-            ),
-            h(
-              'div',
-              { className: 'mgc-row2' },
-              h(
-                'div',
-                { className: 'mgc-field' },
-                h('label', { className: 'mgc-label' }, t('create.memberName')),
-                h('input', {
-                  className: 'mgc-input',
-                  value: draft.name,
-                  maxLength: 16,
-                  onChange: (event) => patchDraft(draft.key, 'name', event.target.value),
-                  placeholder: t('create.memberNamePlaceholder'),
-                }),
-              ),
-              h(
-                'div',
-                { className: 'mgc-field' },
-                h('label', { className: 'mgc-label' }, t('create.memberOneLiner')),
-                h('input', {
-                  className: 'mgc-input',
-                  value: draft.oneLiner,
-                  maxLength: 400,
-                  onChange: (event) => patchDraft(draft.key, 'oneLiner', event.target.value),
-                  placeholder: t('create.memberOneLinerPlaceholder'),
-                }),
-              ),
-            ),
-            h(
-              'div',
-              { className: 'mgc-field', style: { marginBottom: 0 } },
-              h('label', { className: 'mgc-label' }, t('create.memberCore')),
-              h('textarea', {
-                className: 'mgc-textarea2',
-                value: draft.core,
-                onChange: (event) => patchDraft(draft.key, 'core', event.target.value),
-                placeholder: t('create.memberCorePlaceholder'),
-              }),
-              h('div', { className: 'mgc-hint' }, t('create.coreHint')),
-            ),
+            'button',
+            {
+              type: 'button',
+              className: mode === 'library' ? 'mgc-btn mgc-btnPrimary' : 'mgc-btn',
+              onClick: () => setMode('library'),
+              disabled: state.characters.length < 2,
+            },
+            t('create.fromLibrary'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: mode === 'new' ? 'mgc-btn mgc-btnPrimary' : 'mgc-btn',
+              onClick: () => setMode('new'),
+            },
+            t('create.newCharacters'),
           ),
         ),
-        drafts.length < 3
-          ? h('button', { type: 'button', className: 'mgc-btn', onClick: addMember }, '+ ', t('create.addMember'))
-          : null,
+        mode === 'library'
+          ? h(
+              'div',
+              null,
+              h('div', { className: 'mgc-hint', style: { marginBottom: '10px' } }, state.characters.length === 0 ? t('create.noLibrary') : t('create.selectHint')),
+              state.characters.length === 0
+                ? null
+                : h(
+                    'div',
+                    { className: 'mgc-memberList' },
+                    state.characters.map((character) =>
+                      h(
+                        'label',
+                        { key: character.id, className: 'mgc-memberRow', style: { cursor: 'pointer' } },
+                        h('input', {
+                          type: 'checkbox',
+                          checked: selectedIds.includes(character.id),
+                          disabled: !selectedIds.includes(character.id) && selectedIds.length >= 3,
+                          onChange: () => toggleCharacter(character.id),
+                        }),
+                        h(Avatar, { name: character.name, color: avatarColor(state.characters, character.id), small: true, src: character.avatar ?? null }),
+                        h(
+                          'span',
+                          { className: 'mgc-memberText' },
+                          h('span', { className: 'mgc-memberName' }, character.name),
+                          h('span', { className: 'mgc-memberOneLiner' }, character.public?.oneLiner || t('common.none')),
+                        ),
+                      ),
+                    ),
+                  ),
+              h('div', { className: 'mgc-hint', style: { marginTop: '8px' } }, t('create.selected', { n: selectedIds.length })),
+            )
+          : h(
+              'div',
+              null,
+              drafts.map((draft, index) =>
+                h(
+                  'div',
+                  { key: draft.key, className: 'mgc-card mgc-memberDraft' },
+                  h(
+                    'div',
+                    { className: 'mgc-draftHead' },
+                    h('span', { className: 'mgc-draftTitle' }, t('create.memberN', { n: index + 1 })),
+                    drafts.length > 2
+                      ? h('button', { type: 'button', className: 'mgc-btn mgc-btnDanger', onClick: () => removeMember(draft.key) }, t('create.remove'))
+                      : null,
+                  ),
+                  h(
+                    'div',
+                    { className: 'mgc-row2' },
+                    h(
+                      'div',
+                      { className: 'mgc-field' },
+                      h('label', { className: 'mgc-label' }, t('create.memberName')),
+                      h('input', {
+                        className: 'mgc-input',
+                        value: draft.name,
+                        maxLength: 16,
+                        onChange: (event) => patchDraft(draft.key, 'name', event.target.value),
+                        placeholder: t('create.memberNamePlaceholder'),
+                      }),
+                    ),
+                    h(
+                      'div',
+                      { className: 'mgc-field' },
+                      h('label', { className: 'mgc-label' }, t('create.memberOneLiner')),
+                      h('input', {
+                        className: 'mgc-input',
+                        value: draft.oneLiner,
+                        maxLength: 400,
+                        onChange: (event) => patchDraft(draft.key, 'oneLiner', event.target.value),
+                        placeholder: t('create.memberOneLinerPlaceholder'),
+                      }),
+                    ),
+                  ),
+                  h(
+                    'div',
+                    { className: 'mgc-field', style: { marginBottom: 0 } },
+                    h('label', { className: 'mgc-label' }, t('create.memberCore')),
+                    h('textarea', {
+                      className: 'mgc-textarea2',
+                      value: draft.core,
+                      onChange: (event) => patchDraft(draft.key, 'core', event.target.value),
+                      placeholder: t('create.memberCorePlaceholder'),
+                    }),
+                    h('div', { className: 'mgc-hint' }, t('create.coreHint')),
+                  ),
+                ),
+              ),
+              drafts.length < 3
+                ? h('button', { type: 'button', className: 'mgc-btn', onClick: addMember }, '+ ', t('create.addMember'))
+                : null,
+            ),
         h('p', { className: 'mgc-hint', style: { margin: '14px 0' } }, t('create.hint')),
         error !== null ? h('p', { className: 'mgc-error' }, error) : null,
         h(
@@ -4314,6 +5016,7 @@ color-scheme:dark;
                 { className: 'mgc-section' },
                 h(CreateGroupForm, {
                   store,
+                  state,
                   t,
                   embedded: true,
                   allowCancel: true,
@@ -4353,6 +5056,11 @@ color-scheme:dark;
                   h(MembersEditor, { state, t, store }),
                 ),
               ),
+          h(
+            'div',
+            { className: 'mgc-section' },
+            h(CharacterLibrary, { state, t, store }),
+          ),
           h('p', { className: 'mgc-hint' }, t('settings.hint')),
         ),
       );

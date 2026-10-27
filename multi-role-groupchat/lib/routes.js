@@ -51,6 +51,10 @@ export function registerRoutes(ctx, store) {
   register('/api/groupchat.group-update', ['POST'], (request) => handleGroupUpdate(store, request));
   register('/api/groupchat.group-delete', ['POST'], (request) => handleGroupDelete(store, request));
   register('/api/groupchat.member-save', ['POST'], (request) => handleMemberSave(store, request));
+  register('/api/groupchat.character-save', ['POST'], (request) => handleCharacterSave(store, request));
+  register('/api/groupchat.character-preview', ['POST'], (request) => handleCharacterPreview(store, request));
+  register('/api/groupchat.character-delete', ['POST'], (request) => handleCharacterDelete(store, request));
+  register('/api/groupchat.group-characters', ['POST'], (request) => handleGroupCharacters(store, request));
   register('/api/groupchat.send', ['POST'], (request) => handleSend(ctx, store, request));
   register('/api/groupchat.stop', ['POST'], (request) => handleStop(store, request));
   register('/api/groupchat.rewrite', ['POST'], (request) => handleRewrite(ctx, store, request));
@@ -162,6 +166,7 @@ async function handleState(ctx, store, request) {
     dataDir: store.root,
     defaultModel: defaultModelOf(ctx),
     groups,
+    characters: await store.listCharacters(),
     selectedId,
     selected,
   });
@@ -201,7 +206,11 @@ async function handleGroupCreate(store, request) {
   const live = await store.createGroup({
     name: body.name,
     brief: body.brief,
-    members: body.members,
+    owner: body.owner,
+    policy: body.policy,
+    budget: body.budget,
+    model: body.model,
+    ...(Array.isArray(body.characterIds) ? { characterIds: body.characterIds } : { members: body.members }),
   });
   return json({ groupId: live.gid, state: await store.stateView(live.gid) });
 }
@@ -254,6 +263,82 @@ async function handleMemberSave(store, request) {
   if (typeof body.groupId !== 'string') throw new GroupChatError('缺少 groupId。');
   const member = await store.saveMember(body.groupId, body);
   return json({ member, state: await store.stateView(body.groupId) });
+}
+
+/**
+ * POST create or edit one global character.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} saved character.
+ */
+async function handleCharacterSave(store, request) {
+  const body = await readBody(request);
+  const character = await store.saveCharacter(body);
+  return json({ character });
+}
+
+/**
+ * POST delete one global character. The store refuses while any group uses it.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} deletion result.
+ */
+async function handleCharacterDelete(store, request) {
+  const body = await readBody(request);
+  if (typeof body.characterId !== 'string') throw new GroupChatError('缺少 characterId。');
+  await store.deleteCharacter(body.characterId);
+  return json({ deleted: true, characterId: body.characterId });
+}
+
+/**
+ * POST validate one character card against the global library.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} normalized form fields.
+ */
+async function handleCharacterPreview(store, request) {
+  const text = await readPortableText(request);
+  const parsed = parsePortable(text, 'character');
+  const normalized = normalizeCharacterCard(parsed.value, 'member');
+  const members = await store.listCharacters();
+  const mapped = mapCharacterRelations(normalized.character, members, { kind: 'member', selfId: null });
+  return json({
+    kind: 'character',
+    fields: {
+      name: normalized.character.name,
+      oneLiner: normalized.character.oneLiner,
+      style: normalized.character.style,
+      memory: normalized.character.memory,
+      privateRelations: mapped.privateRelations,
+      core: normalized.character.core,
+      extended: normalized.character.extended,
+      extendedEnabled: normalized.character.extendedEnabled,
+      avatar: normalized.character.avatar,
+      relations: mapped.relations,
+      model: normalized.character.model,
+    },
+    warnings: [...parsed.warnings, ...normalized.warnings, ...mapped.warnings],
+  });
+}
+
+/**
+ * POST add or remove characters in one group's roster.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} updated state.
+ */
+async function handleGroupCharacters(store, request) {
+  const body = await readBody(request);
+  if (typeof body.groupId !== 'string') throw new GroupChatError('缺少 groupId。');
+  if (body.action === 'add') {
+    await store.addGroupCharacters(body.groupId, body.characterIds);
+  } else if (body.action === 'remove') {
+    if (typeof body.characterId !== 'string') throw new GroupChatError('缺少 characterId。');
+    await store.removeGroupCharacter(body.groupId, body.characterId);
+  } else {
+    throw new GroupChatError('action 必须是 add 或 remove。');
+  }
+  return json({ state: await store.stateView(body.groupId) });
 }
 
 /**

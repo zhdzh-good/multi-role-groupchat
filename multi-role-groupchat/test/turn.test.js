@@ -231,6 +231,23 @@ test('a message can hand off to two members and each replies once', async () => 
   assert.equal(outcome.reason, 'owner');
 });
 
+test('a generation failure is persisted as a notice', async () => {
+  const io = harness({
+    userText: '@林晚 你来说',
+    policy: { bystanderChance: 0 },
+  });
+  io.generate = async () => {
+    throw new Error('provider down');
+  };
+  const outcome = await runTurn(io);
+  assert.equal(outcome.reason, 'interrupted');
+  assert.equal(io.notices.length, 1);
+  assert.match(io.notices[0].text, /林晚 回应失败：provider down/);
+  assert.ok(io.events.some((event) => event.type === 'notice'));
+  assert.ok(io.events.some((event) => event.type === 'error' && event.message === 'provider down'));
+  assert.equal(io.messages.length, 1, 'only the owner message remains');
+});
+
 test('a member addressing the owner does not cancel planned bystanders', async () => {
   const io = harness({
     userText: '@林晚 你先说',

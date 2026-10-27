@@ -171,10 +171,10 @@ test('members can be edited, added, and validated', async (t) => {
   assert.equal(reloaded.members[0].style, '句子短，叫甲“你”。');
   assert.equal(reloaded.members[0].memory, '甲最近失业了，但我不想点破。');
   assert.equal(reloaded.members[0].privateRelations[live.members[1].id], '我其实还没完全信任他。');
-  const card = JSON.parse(await readFile(path.join(live.dir, 'members', first.id, 'card.json'), 'utf8'));
+  const card = JSON.parse(await readFile(path.join(store.root, 'characters', first.id, 'card.json'), 'utf8'));
   assert.equal(card.privateRelations[live.members[1].id], '我其实还没完全信任他。');
   assert.doesNotMatch(JSON.stringify(card), /甲最近失业了/);
-  assert.equal(await readFile(path.join(live.dir, 'members', first.id, 'setting', 'memory.md'), 'utf8'), '甲最近失业了，但我不想点破。');
+  assert.equal(await readFile(path.join(store.root, 'characters', first.id, 'setting', 'memory.md'), 'utf8'), '甲最近失业了，但我不想点破。');
 
   // Avatars are opaque strings on the Host (the browser stores a 128×128 data URL).
   const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lP1kAAAAAElFTkSuQmCC';

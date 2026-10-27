@@ -194,9 +194,19 @@ export async function runTurn(input) {
         emit({ type: 'stopped', reason: 'user' });
         return null;
       }
+      const failure = error instanceof Error ? error.message : String(error);
+      // Persist the failure so a reload still explains why the turn stopped;
+      // the ephemeral `error` event alone disappears with the stream.
+      let notice = null;
+      try {
+        notice = appendNotice(`${member.name} 回应失败：${failure}`, 'warn');
+        emit({ type: 'notice', notice });
+      } catch {
+        /* A notice is best effort; the error event still reaches the UI. */
+      }
       emit({
         type: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: failure,
         memberId: member.id,
         memberName: member.name,
       });

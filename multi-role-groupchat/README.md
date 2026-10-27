@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml/badge.svg)](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml)
 
-> 当前版本：**v1.3.2** · 仓库根目录 [README](../README.md)
+> 当前版本：**v1.3.2**（角色库 / 拉群为未发版开发内容） · 仓库根目录 [README](../README.md)
 
 一个 DeepSeek Harness Web GUI 插件：**你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天**。消息默认全群可见；任何成员都可以用 `@名字` 把话交给别人，`@你的角色名` 表示交还控制。
 
@@ -11,13 +11,16 @@
 - **智能路由**：没有 `@` 时判断你在对谁说。显式 `@`、点名、「你/您」和「嗯 / 继续 / 然后呢」等短续接走本地规则；真正模糊的消息才调用一次小型分类模型
 - **概率接话**：目标成员必答；其余每位成员按概率接话，默认 30%，可在群设置里调 0–100%
 - 智能路由可在群设置关闭；关闭后只用 `@`、点名、「你」和短续接，模糊消息按轮转兜底
+- **失败诊断**：生成失败写入 `notice`；群设置显示最近一次 route 的 targets / bystanders / method / reason，刷新后仍可看
+- **角色库 / 拉群**：角色独立于群保存；新建群从角色库拉 2–3 个角色；群只引用 `characterIds`，改一次角色所有群同步
 - **角色与群配置导入导出**：整群 JSON 备份/导入为新群；成员卡和我的角色卡单独导入导出；关系按名字迁移，头像可选
-- **私有记忆 / 私人关系**：只进入本人 prompt；默认导出不含，显式勾选后才写入 `.private.` 文件
+- **私有记忆 / 私人关系**：只进入本人 prompt；编辑页显示字数并可一键清空；默认导出不含，显式勾选后才写入 `.private.` 文件，Markdown 导出永远不会包含私有内容
 - **说话方式 `style`**：称呼、句长、语气独立成字段，只在本人 prompt 中出现
 - **模型下拉选择**：群/成员模型覆盖从宿主 provider / model 目录选择；目录读取失败会显示错误并可重试，必要时回退为手动输入
 - **接话链修复**：成员消息同时提到 owner 和其他成员时，先处理成员接话，不因 owner 提前结束；一次 `@` 多个成员会按队列处理，已排定的旁听者也会继续
 - 我的角色：角色名（默认「用户」）、一句话、角色设定、与成员关系、头像
-- 群 + 2–3 成员、公开档案、核心 / 扩展设定、可选说话方式（style）、私有记忆 / 私人关系、成员模型下拉覆盖
+- 全局角色库 + 群引用 2–3 个角色、公开档案、核心 / 扩展设定、可选说话方式（style）、私有记忆 / 私人关系、成员模型下拉覆盖
+- 多标签页同步：一个标签页发消息、钉住、改群/角色后，其他标签页约 250 ms 内刷新；BroadcastChannel 不可用时回退到 `storage` 事件
 - 可重复 QA：86 条路由样本、25 个角色场景、概率扫描；真实模型运行需显式 key
 - 发送 / 流式回应 / `@` 路由 / 显式接话链 / 接话跳数上限
 - `@角色名` 立即停止、预算不足暂停并写入提示（旧 `@群主` 仍兼容）
@@ -43,20 +46,21 @@
 默认目录：`$DSH_HOME/plugin-data/multi-role-groupchat/groups/<gid>/`
 
 ```text
-group.json
-members/<cid>/card.json
-members/<cid>/setting/core.md
-members/<cid>/setting/extended.md
-members/<cid>/setting/memory.md
-events.jsonl
-export/script.md
+characters/<cid>/card.json
+characters/<cid>/setting/core.md
+characters/<cid>/setting/extended.md
+characters/<cid>/setting/memory.md
+groups/<gid>/group.json          # characterIds + owner + policy
+groups/<gid>/events.jsonl
+groups/<gid>/export/script.md
 ```
 
 - `events.jsonl` 追加写：`message` / `route` / `supersede` / `pin` / `notice`。
-- `card.json` 保存成员公开档案、`style` 与 `privateRelations`；`setting/memory.md` 保存只在本人 prompt 中出现的私有记忆。
+- `characters/<cid>/card.json` 保存角色公开档案、`style` 与 `privateRelations`；`setting/memory.md` 保存只在本人 prompt 中出现的私有记忆。
+- 群只在 `group.json.characterIds` 保存角色引用，不再复制角色档案。
 - `group.json.owner` 保存我的角色档案：`name` / `oneLiner` / `setting` / `avatar` / `relations`。
 - 启动或首次打开时重放事件；末尾不完整行丢弃并在界面提示。
-- `group.json` / `card.json` 带 `schemaVersion: 1`；遇到更高版本会拒绝读取并提示迁移，不静默覆盖。
+- `group.json` / `card.json` 带 `schemaVersion: 2`；v1 群会在首次加载时把 `groups/<gid>/members/` 迁移到全局 `characters/`，旧目录保留用于回滚。遇到更高版本会拒绝读取并提示迁移，不静默覆盖。
 - 删除插件数据 = 删除该目录；「删除群聊」只删除 `groups/<gid>/` 这一棵目录。
 - 插件不会修改 Harness 的会话日志。
 
@@ -74,6 +78,17 @@ export/script.md
 - 导入前会显示预览、文件大小、头像数量和校验提示；重名、成员数量、关系缺失、头像格式等问题会在保存前提示。
 - 限制：当前只支持 JSON；单文件 ≤ 4 MB；头像单张 ≤ 300 KB；成员 2–3 人；核心/扩展设定 ≤ 20,000 字符；说话方式 ≤ 300 字符；私有记忆 ≤ 4,000 字符；一句话 ≤ 400 字符；单条关系 ≤ 200 字符。
 
+## 角色库与拉群
+
+- 「管理 → 角色库」维护全局角色：公开档案、style、核心/扩展设定、私有记忆、私人关系、头像、模型覆盖。
+- 新建群支持两种方式：
+  1. **从角色库选择**：勾选 2–3 个角色，再填群名/简介/我的角色；
+  2. **新建角色并建群**：沿用旧流程，一次性创建角色和群。
+- 群成员页可以从角色库「拉人」，也可以把角色移出群；移出不会删除角色。
+- 角色被群引用时不能删除；改名会同步所有引用它的群。
+- 同一个角色可以进多个群，群只保存 `characterIds`，不再复制角色档案。
+- 整群导出仍然内嵌角色快照，保证换机器后能还原；导入会创建新的全局角色。
+
 ## 协议要点
 
 - 提及解析：`/@([^\s@，。！？、,.!?:：;；]{1,16})/g`，与成员显示名或角色名 **精确**匹配；旧 `@群主` 保留为兼容别名。未知 `@` 只当文本，不改路由。
@@ -90,7 +105,7 @@ export/script.md
 
 ```bash
 cd multi-role-groupchat
-npm test                    # 96 个确定性测试（协议、路由、导入导出、编排、存储、HTTP、稳定性、私有字段隔离、接话链回归、QA fixture）
+npm test                    # 102 个确定性测试（协议、路由、导入导出、编排、存储、HTTP、稳定性、角色共享/迁移、失败诊断、私有字段隔离、接话链回归、QA fixture）
 node --check client.js      # 浏览器模块语法
 npm run check:locales       # 中英字典 key 对齐
 npm pack --dry-run          # 检查发布包内容
@@ -108,7 +123,7 @@ node --test --test-name-pattern=randomized test/stability.test.js
 
 已跑过 500 轮 + 4 组不同深度/提及上限/种子的 300 轮组合，检查：生成次数上限、接话不连续同人、`replyIndex` 连续、`replyTo` 链、`@角色名` 即停、钉住上限、折叠计数、token 累计、JSONL 唯一性、每 10 轮重启重放一致、并发发送 409、单群停止不影响其他群、200 条消息重放与截断行恢复。
 
-测试覆盖：`@` 精确匹配 / 未知忽略 / 自我忽略、直接点名与「你」、短续接、否定语境、emoji、本人被点名、分类结果解析与失败兜底、目标必答、0/50/100% 概率接话、生成上限、显式接话链、事件重放（含 `route` usage）、角色卡/群配置导出导入与关系重映射、私有字段默认不导出/显式导出、私有记忆文件持久化、导入失败回滚、重写、预算暂停、存储重载与截断行、HTTP 路由与 NDJSON 流、prompt 分层与 QA fixture。
+测试覆盖：`@` 精确匹配 / 未知忽略 / 自我忽略、直接点名与「你」、短续接、否定语境、emoji、本人被点名、分类结果解析与失败兜底、目标必答、0/50/100% 概率接话、生成上限、显式接话链、事件重放（含 `route` usage）、全局角色共享 / 删除保护 / v1 迁移、角色卡/群配置导出导入与关系重映射、私有字段默认不导出/显式导出、私有记忆文件持久化、导入失败回滚、重写、预算暂停、存储重载与截断行、HTTP 路由与 NDJSON 流、prompt 分层与 QA fixture。
 
 ## QA
 
@@ -182,7 +197,7 @@ Host 会再校验一次群名；删除会移除 `groups/<gid>/` 下的成员设�
 ## 已知限制
 
 - 头像在「管理 → 成员」里上传 PNG / JPEG / WebP，客户端裁成 128×128 PNG 后以 data URL 存入 `card.json`；未设置时显示首字色块。
-- 成员最多 3 个；暂不提供移除单个成员（可加成员、可删除整个群）。
+- 每个群 2–3 个成员；可从群成员页拉人/移出，移出只解除引用，不删除角色档案；删除角色时若仍被群引用会被拒绝。
 - 角色名与成员名共用 `@` 命名空间，重名会被拒绝。
 - 「停止」保留已生成的部分在界面上，但不写入有效消息；重新加载后只看到已完成的回复。
 - 重写只替换目标那一条，不继续触发接话链。
@@ -192,7 +207,7 @@ Host 会再校验一次群名；删除会移除 `groups/<gid>/` 下的成员设�
 - 角色关系按显示名匹配；导入到缺少对应成员的群时，这些关系会被跳过并在预览中提示。
 - 预算按 provider 返回的 usage 累计；不同 provider 的缓存字段口径可能不同。
 - 钉住的消息会按计划书移到 prompt 前部，因此“钉住一条旧消息”会改变此前的缓存前缀；未钉住的线性对话前缀保持稳定。
-- 多标签页之间没有实时推送；面板重新挂载或生成中轮询时同步。切换面板不会中断进行中的生成，但关闭页面会中断。
+- 多标签页通过 BroadcastChannel（回退 `storage` 事件）同步已落盘的数据，约 250 ms 延迟；正在流式生成的那个标签页不会刷新，等本轮结束后再同步。切换面板不会中断进行中的生成，但关闭页面会中断。
 - 浏览器端的视觉与交互（主题、深浅色、窄屏）已按宿主 token 编写，但本环境无法截图验证；交付时只声明静态与 Host/Client 接线验证结果。
 
 ## Roadmap

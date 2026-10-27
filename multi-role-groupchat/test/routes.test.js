@@ -110,7 +110,7 @@ async function fixture(t, options) {
 
 test('routes expose state, creation, sending, pinning, rewriting, and export', async (t) => {
   const { routes } = await fixture(t, { texts: ['你好。', '我也在。', '那好吧。'] });
-  assert.equal(routes.size, 15);
+  assert.equal(routes.size, 19);
 
   const created = await call(routes, '/api/groupchat.group-create', {
     body: {
@@ -318,6 +318,11 @@ test('portable routes export, preview, and import a group without ids', async (t
   assert.equal(characterPreview.status, 200);
   assert.equal(characterPreview.json.fields.name, '甲');
   assert.deepEqual(characterPreview.json.fields.relations, { [second.id]: '旧识' });
+  const libraryPreview = await call(routes, '/api/groupchat.character-preview', {
+    body: { text: JSON.stringify(memberCard.json.data) },
+  });
+  assert.equal(libraryPreview.status, 200);
+  assert.equal(libraryPreview.json.fields.name, '甲');
   assert.equal(characterPreview.json.fields.memory, '');
   const privateCard = await call(routes, '/api/groupchat.portable-export', {
     body: { groupId, scope: 'member', memberId: first.id, includeAvatars: true, includePrivate: true },
@@ -348,6 +353,42 @@ test('portable routes export, preview, and import a group without ids', async (t
   });
   assert.equal(wrongKind.status, 400);
   assert.equal(wrongKind.json.error.code, 'groupchat/portable-wrong-kind');
+});
+
+test('character routes create, add to a group, remove, and delete', async (t) => {
+  const { routes } = await fixture(t);
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: {
+      name: '拉群测试',
+      owner: { name: '阿明', oneLiner: '常客', setting: '每晚都来。' },
+      members: [{ name: '甲', core: '甲' }, { name: '乙', core: '乙' }],
+    },
+  });
+  const groupId = created.json.groupId;
+  assert.equal(created.json.state.owner.name, '阿明');
+  const character = await call(routes, '/api/groupchat.character-save', {
+    body: { name: '丙', oneLiner: '角色库角色', core: '丙的核心。' },
+  });
+  assert.equal(character.status, 200);
+  assert.equal(character.json.character.name, '丙');
+
+  const added = await call(routes, '/api/groupchat.group-characters', {
+    body: { groupId, action: 'add', characterIds: [character.json.character.id] },
+  });
+  assert.equal(added.status, 200);
+  assert.equal(added.json.state.members.length, 3);
+
+  const removed = await call(routes, '/api/groupchat.group-characters', {
+    body: { groupId, action: 'remove', characterId: character.json.character.id },
+  });
+  assert.equal(removed.status, 200);
+  assert.equal(removed.json.state.members.length, 2);
+
+  const deleted = await call(routes, '/api/groupchat.character-delete', {
+    body: { characterId: character.json.character.id },
+  });
+  assert.equal(deleted.status, 200);
+  assert.equal(deleted.json.deleted, true);
 });
 
 test('routes reject invalid input without leaking internals', async (t) => {
@@ -399,9 +440,14 @@ test('owner settings travel through the route and a custom owner name stops the 
   assert.equal(finalState.state.owner.name, '阿明');
   assert.equal(finalState.state.messages[0].memberName, '阿明');
 
+  const privateMemory = '这段私有记忆不应出现在 Markdown';
+  await call(routes, '/api/groupchat.member-save', {
+    body: { groupId, memberId: created.json.state.members[0].id, memory: privateMemory },
+  });
   const exported = await call(routes, '/api/groupchat.export', { body: { groupId } });
   assert.match(exported.json.markdown, /- 角色：阿明/);
   assert.match(exported.json.markdown, /### 第 1 轮 · 阿明/);
+  assert.equal(exported.json.markdown.includes(privateMemory), false);
 });
 
 

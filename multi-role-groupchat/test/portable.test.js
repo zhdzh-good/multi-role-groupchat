@@ -257,6 +257,7 @@ test('store.importGroup creates fresh ids and remaps name-keyed relations', asyn
   assert.equal(imported.members[0].privateRelations[imported.members[1].id], '我其实还没完全信任他。');
   assert.equal(imported.members[0].extendedEnabled, true);
   assert.equal((await store.listGroups()).length, 2);
+  assert.equal((await store.listCharacters()).length, 4);
 });
 
 test('a failed group import removes the half-created group', async (t) => {
@@ -272,4 +273,5 @@ test('a failed group import removes the half-created group', async (t) => {
   };
   await assert.rejects(store.importGroup(normalized), /simulated write failure/);
   assert.deepEqual(await store.listGroups(), []);
+  assert.deepEqual(await store.listCharacters(), []);
 });
