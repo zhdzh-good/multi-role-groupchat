@@ -6,7 +6,7 @@
 **多角色群聊插件**：你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天。消息默认全群可见，
 谁都可以用 `@名字` 把话交给别人。成员可以拥有只给自己看的私有记忆和私人关系。
 
-> 当前版本：**v1.3.2**（角色库 / 拉群为未发版开发内容） · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
+> 当前版本：**v1.4.0**（角色库 / 拉群、失败诊断、多标签同步） · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
 
 ## v1.1 更新：智能路由
 
@@ -37,17 +37,20 @@
 
 当前只支持 JSON；YAML 留作后续可选项。
 
+## v1.4 更新：角色库、失败诊断与多标签同步
+
+- **角色库 / 拉群**：角色是全局资产；新建群从角色库勾选 2–3 个角色，群只保存 `characterIds`；改名/设定一次同步所有群
+- **失败诊断**：生成失败会写入可重放的 `notice`；群设置显示最近一次路由的目标 / 旁听 / 方法 / 原因
+- **多标签页同步**：发消息、钉住、改群/角色后，其他标签页约 250 ms 内刷新；BroadcastChannel 不可用时回退到 `storage` 事件
+- **私有记忆整理**：编辑页显示字数，可一键清空后保存；导出勾选私有时显示醒目警告，Markdown 永远不含私有内容
+
 ## v1.3 更新：私有记忆、角色贴合度与可重复 QA
 
 - **私有记忆**：每个成员可维护一份 `memory.md`，只进入该成员自己的 prompt 尾部，不进入群简介、system 前缀、路由器或其他成员的 prompt
 - **私人关系**：每个成员可以单独记录对其他成员的私下看法，同样只给本人看；公开关系仍然全群可见
-- **默认不泄露**：群/成员卡导出默认不含私有字段；只有显式勾选「包含私有记忆」才会写入，文件名带 `.private.` 提示妥善保管；选择包含私有时会显示醒目警告，Markdown 导出永远不含私有内容
-- **私有记忆整理**：编辑页显示字数，可一键清空后保存
+- **默认不泄露**：群/成员卡导出默认不含私有字段；只有显式勾选「包含私有记忆」才会写入，文件名带 `.private.` 提示妥善保管
 - **说话方式 `style`**：称呼、句长、口头禅、语气作为独立字段，只在本人 prompt 中出现
 - **prompt 分层**：角色核心 / 扩展 / 说话方式 / 本人关系 / 最近说过 / 场景 / 任务 / 提醒；system 前缀保持稳定，便于缓存
-- **失败诊断**：生成失败会写入可重放的 `notice`；群设置显示最近一次路由的目标 / 旁听 / 方法 / 原因
-- **多标签页同步**：发消息、钉住、改群/角色后，其他标签页约 250 ms 内刷新；BroadcastChannel 不可用时回退到 `storage` 事件
-- **角色库 / 拉群**：角色是全局资产；新建群从角色库勾选 2–3 个角色，群只保存 `characterIds`；改名/设定一次同步所有群
 - **模型下拉选择**：群/成员模型覆盖从宿主已注册的 provider / model 目录选择，不用手敲；目录失败可重试或回退输入
 - **接话链修复**：成员同时 `@你` 和 `@其他成员` 时，不再因为先看到 owner 就结束整轮；一次 `@` 多个成员会按队列依次接话，已排定的旁听者也不会被吞掉
 - **可重复 QA**：86 条路由样本、25 个角色场景、漂移指纹与概率扫描；真实模型运行需要显式 key
@@ -95,7 +98,7 @@ plugin_manager action=install_bundle target=<仓库路径>/multi-role-groupchat
 或直接安装 GitHub Release 的预构建 tarball：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.3.2/zhdzh-good-multi-role-groupchat-1.3.2.tgz"
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.4.0/zhdzh-good-multi-role-groupchat-1.4.0.tgz"
 ```
 
 安装或升级后刷新 Web 页面，左侧栏出现「群聊」。数据保存在
