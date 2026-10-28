@@ -459,6 +459,7 @@ color-scheme:dark;
       'messages.rewriting': '重写中…',
       'messages.usageTitle': '输入 {input} · 输出 {output} · 缓存读 {cacheRead} · 缓存写 {cacheWrite}',
       'messages.folded': '已折叠 {n} 条早期消息（钉住消息保留）',
+      'messages.showEarlier': '显示更早的 {n} 条',
       'messages.showFolded': '查看',
       'messages.hideFolded': '收起',
       'messages.foldedTag': '已折叠',
@@ -749,6 +750,7 @@ color-scheme:dark;
       'messages.rewriting': 'Rewriting…',
       'messages.usageTitle': 'Input {input} · output {output} · cache read {cacheRead} · cache write {cacheWrite}',
       'messages.folded': '{n} earlier messages folded out of the prompt (pinned messages stay)',
+      'messages.showEarlier': 'Show {n} earlier messages',
       'messages.showFolded': 'Show',
       'messages.hideFolded': 'Hide',
       'messages.foldedTag': 'Folded',
@@ -2220,7 +2222,13 @@ color-scheme:dark;
       const wrapRef = useRef(null);
       const stick = useRef(true);
       const messages = state.messages;
-      const visible = showFolded ? messages : messages.filter((message) => !message.folded);
+      const [renderCount, setRenderCount] = useState(300);
+      useEffect(() => {
+        setRenderCount(300);
+      }, [state.group?.id, showFolded]);
+      const allVisible = showFolded ? messages : messages.filter((message) => !message.folded);
+      const hiddenCount = Math.max(0, allVisible.length - renderCount);
+      const visible = hiddenCount > 0 ? allVisible.slice(hiddenCount) : allVisible;
       const items = useMemo(() => {
         const merged = [
           ...visible.map((message) => ({ kind: 'message', ts: message.ts, message })),
@@ -2264,6 +2272,22 @@ color-scheme:dark;
                   t('messages.folded', { n: state.foldedCount }),
                   h(IconChevron, { size: 11 }),
                   showFolded ? t('messages.hideFolded') : t('messages.showFolded'),
+                ),
+              )
+            : null,
+          hiddenCount > 0
+            ? h(
+                'div',
+                { className: 'mgc-foldBar' },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mgc-foldBtn',
+                    onClick: () => setRenderCount((count) => count + 300),
+                  },
+                  t('messages.showEarlier', { n: hiddenCount }),
+                  h(IconChevron, { size: 11 }),
                 ),
               )
             : null,

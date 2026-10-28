@@ -39,7 +39,7 @@
 
 | ID | 任务 | 验收 | 规模 |
 |---|---|---|---|
-| P1-1 | 长对话 UI 虚拟化/分页（默认只渲染最近 N 条，向前加载） | 2000 条消息下滚动与输入不卡顿 | M |
+| P1-1 | 长对话 UI 虚拟化/分页（默认只渲染最近 N 条，向前加载） | 进行中：展开历史按 300 条分页；500/2000/5000 重放与滚动实测待补 | M |
 | P1-2 | 多标签页实时同步（Host 事件流或 BroadcastChannel） | 已完成：BroadcastChannel + `storage` 回退，约 250 ms；两个标签页可看到新消息/钉住/改群 | M |
 | P1-3 | Provider 兼容层：成员历史改用 assistant role 的可行性；能力探测与降级 | DeepSeek + 至少一个 OpenAI-compatible provider 通过 | M |
 | P1-4 | 模型选择器：用 `/api/groupchat.models` 的 provider/model 目录替代自由输入 | 已完成：群/成员均改为下拉；加载中/目录错误可重试，必要时回退手动输入 | S |
