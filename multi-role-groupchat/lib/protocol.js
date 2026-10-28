@@ -366,6 +366,27 @@ export function createState() {
 }
 
 /**
+ * Validate the retry metadata a failed notice carries.
+ * @param {unknown} value - candidate metadata.
+ * @returns {object|null} normalized metadata, or null when unusable.
+ */
+export function normalizeRetry(value) {
+  if (value === null || typeof value !== 'object') return null;
+  const turnId = typeof value.turnId === 'string' && value.turnId.length > 0 ? value.turnId : null;
+  const memberId = typeof value.memberId === 'string' && value.memberId.length > 0 ? value.memberId : null;
+  if (turnId === null || memberId === null) return null;
+  return {
+    turnId,
+    memberId,
+    replyIndex: Number.isInteger(value.replyIndex) && value.replyIndex > 0 ? value.replyIndex : 1,
+    replyTo: typeof value.replyTo === 'string' && value.replyTo.length > 0 ? value.replyTo : null,
+    routeRole: typeof value.routeRole === 'string' ? value.routeRole : null,
+    attempts: Number.isInteger(value.attempts) && value.attempts > 0 ? value.attempts : 1,
+    resolved: value.resolved === true,
+  };
+}
+
+/**
  * Apply one stored event to a replay state. Unknown event types are ignored so
  * a newer writer never breaks an older reader.
  *
@@ -411,12 +432,25 @@ export function applyEvent(state, event) {
     return state;
   }
   if (event.type === 'notice') {
-    state.notices.push({
-      id: typeof event.id === 'string' ? event.id : `n_${state.notices.length}`,
+    const id = typeof event.id === 'string' ? event.id : `n_${state.notices.length}`;
+    const retry = normalizeRetry(event.retry);
+    const existing = state.notices.find((notice) => notice.id === id);
+    // A notice event with an existing id updates it in place: retry
+    // resolution must not append a duplicate row or move the failure in time.
+    if (existing !== undefined) {
+      if (typeof event.text === 'string') existing.text = event.text;
+      if (event.level === 'warn' || event.level === 'info') existing.level = event.level;
+      if (retry !== null) existing.retry = retry;
+      return state;
+    }
+    const notice = {
+      id,
       ts: Number.isFinite(event.ts) ? event.ts : 0,
       text: typeof event.text === 'string' ? event.text : '',
       level: event.level === 'warn' ? 'warn' : 'info',
-    });
+    };
+    if (retry !== null) notice.retry = retry;
+    state.notices.push(notice);
     return state;
   }
   if (event.type === 'route') {

@@ -76,6 +76,11 @@ window.__ModuleLoader__.load({
 .mgc-noticeRow{display:flex;justify-content:center;padding:10px 0}
 .mgc-notice{display:inline-flex;align-items:flex-start;gap:7px;max-width:100%;padding:6px 12px;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent);color:var(--dsw-alias-label-secondary);font-size:12px;line-height:19px;text-align:left}
 .mgc-noticeWarn{color:var(--dsw-alias-state-warn-primary);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 10%,transparent)}
+.mgc-noticeText{min-width:0;overflow-wrap:anywhere}
+.mgc-noticeBtn{flex:none;height:22px;padding:0 8px;border:.5px solid currentColor;border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:11px;cursor:pointer}
+.mgc-noticeBtn:hover:not(:disabled){background:color-mix(in srgb,currentColor 10%,transparent)}
+.mgc-noticeBtn:disabled{opacity:.55;cursor:default}
+.mgc-noticeDone{flex:none;opacity:.7;font-size:10px}
 .mgc-foldBar{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;margin:6px 0}
 .mgc-foldBtn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l1);border-radius:13px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer}
 .mgc-foldBtn:hover{color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent)}
@@ -444,6 +449,8 @@ color-scheme:dark;
       'header.stop': '停止',
       'header.defaultModel': '默认模型：{model}',
       'messages.owner': '用户',
+      'notice.retryHint': '只重试这一条失败回应，不会重复已有消息。',
+      'notice.retried': '已重试',
       'messages.pin': '钉住',
       'messages.unpin': '取消钉住',
       'messages.copy': '复制',
@@ -732,6 +739,8 @@ color-scheme:dark;
       'header.stop': 'Stop',
       'header.defaultModel': 'Default model: {model}',
       'messages.owner': 'User',
+      'notice.retryHint': 'Retry only this failed reply; existing messages are kept.',
+      'notice.retried': 'Retried',
       'messages.pin': 'Pin',
       'messages.unpin': 'Unpin',
       'messages.copy': 'Copy',
@@ -1341,7 +1350,12 @@ color-scheme:dark;
             break;
           }
           case 'notice': {
-            emit({ notices: [...state.notices, event.notice].slice(-20) });
+            const exists = state.notices.some((notice) => notice.id === event.notice.id);
+            emit({
+              notices: exists
+                ? state.notices.map((notice) => (notice.id === event.notice.id ? event.notice : notice))
+                : [...state.notices, event.notice].slice(-20),
+            });
             break;
           }
           case 'totals': {
@@ -1459,6 +1473,12 @@ color-scheme:dark;
       async function rewrite(messageId) {
         if (state.busy || state.group === null) return;
         await stream('groupchat.rewrite', { messageId });
+      }
+
+      /** @param {string} noticeId - failed generation notice. @returns {Promise<void>} completion. */
+      async function retryNotice(noticeId) {
+        if (state.busy || state.group === null) return;
+        await stream('groupchat.retry', { noticeId });
       }
 
       /** @param {string} messageId - message. @param {boolean} pinned - desired pin state. @returns {Promise<void>} completion. */
@@ -1799,6 +1819,7 @@ color-scheme:dark;
         send,
         stop,
         rewrite,
+        retryNotice,
         pin,
         saveGroup,
         saveOwner,
@@ -2155,11 +2176,13 @@ color-scheme:dark;
     }
 
     /**
-     * One persisted notice (budget pause and similar).
-     * @param {{notice: object}} props - notice.
+     * One persisted notice (budget pause, failed generation, and similar).
+     * @param {{notice: object, onRetry: Function, disabled: boolean}} props - notice and retry state.
      * @returns {any} element.
      */
-    function NoticeRow({ notice }) {
+    function NoticeRow({ notice, onRetry, disabled }) {
+      const t = useT();
+      const retry = notice.retry;
       return h(
         'div',
         { className: 'mgc-noticeRow' },
@@ -2167,7 +2190,22 @@ color-scheme:dark;
           'div',
           { className: `mgc-notice${notice.level === 'warn' ? ' mgc-noticeWarn' : ''}` },
           h('span', { 'aria-hidden': true }, '!'),
-          h('span', null, notice.text),
+          h('span', { className: 'mgc-noticeText' }, notice.text),
+          retry === undefined
+            ? null
+            : retry.resolved === true
+              ? h('span', { className: 'mgc-noticeDone' }, t('notice.retried'))
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mgc-noticeBtn',
+                    onClick: () => onRetry(notice.id),
+                    disabled,
+                    title: t('notice.retryHint'),
+                  },
+                  t('retry'),
+                ),
         ),
       );
     }
@@ -2178,7 +2216,7 @@ color-scheme:dark;
      * @param {object} props - thread inputs.
      * @returns {any} element.
      */
-    function Thread({ state, t, showFolded, onToggleFolded, onPin, onRewrite }) {
+    function Thread({ state, t, showFolded, onToggleFolded, onPin, onRewrite, onRetry }) {
       const wrapRef = useRef(null);
       const stick = useRef(true);
       const messages = state.messages;
@@ -2239,7 +2277,14 @@ color-scheme:dark;
               )
             : null,
           items.map((item) => {
-            if (item.kind === 'notice') return h(NoticeRow, { key: `n_${item.notice.id}`, notice: item.notice });
+            if (item.kind === 'notice') {
+              return h(NoticeRow, {
+                key: `n_${item.notice.id}`,
+                notice: item.notice,
+                onRetry,
+                disabled: state.busy,
+              });
+            }
             const message = item.message;
             const previous = prevById.get(message.id);
             const continuation = previous !== undefined
@@ -2712,6 +2757,7 @@ color-scheme:dark;
             onToggleFolded: () => setShowFolded((open) => !open),
             onPin: (messageId, pinned) => store.pin(messageId, pinned),
             onRewrite: (messageId) => store.rewrite(messageId),
+            onRetry: (noticeId) => store.retryNotice(noticeId),
           }),
           state.error !== null || state.actionError !== null || state.actionNotice !== null
             ? h('div', { className: 'mgc-bannerSlot' }, h(Banners, { state, t, store }))

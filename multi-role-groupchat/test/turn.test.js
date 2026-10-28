@@ -70,8 +70,8 @@ function harness({
         totals.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
       }
     },
-    appendNotice: (text, level = 'info') => {
-      const notice = { id: `n_${notices.length}`, ts: 0, text, level };
+    appendNotice: (text, level = 'info', retry = null) => {
+      const notice = { id: `n_${notices.length}`, ts: 0, text, level, ...(retry === null ? {} : { retry }) };
       notices.push(notice);
       return notice;
     },
@@ -243,6 +243,11 @@ test('a generation failure is persisted as a notice', async () => {
   assert.equal(outcome.reason, 'interrupted');
   assert.equal(io.notices.length, 1);
   assert.match(io.notices[0].text, /林晚 回应失败：provider down/);
+  assert.equal(io.notices[0].retry.turnId, 'm_user');
+  assert.equal(io.notices[0].retry.memberId, 'c_lin');
+  assert.equal(io.notices[0].retry.replyIndex, 1);
+  assert.equal(io.notices[0].retry.replyTo, 'm_user');
+  assert.equal(io.notices[0].retry.resolved, false);
   assert.ok(io.events.some((event) => event.type === 'notice'));
   assert.ok(io.events.some((event) => event.type === 'error' && event.message === 'provider down'));
   assert.equal(io.messages.length, 1, 'only the owner message remains');

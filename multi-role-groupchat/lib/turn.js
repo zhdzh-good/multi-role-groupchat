@@ -31,7 +31,7 @@ import { resolveRoute } from './router.js';
  * @param {(message: object) => void} input.appendMessage - persist a message and
  *   make it effective.
  * @param {(route: object) => void} [input.appendRoute] - persist the route event.
- * @param {(text: string, level?: 'info'|'warn') => object} input.appendNotice - persist a notice.
+ * @param {(text: string, level?: 'info'|'warn', retry?: object) => object} input.appendNotice - persist a notice.
  * @param {() => object} input.getTotals - accumulated token usage.
  * @param {(request: object) => Promise<{text: string, usage: object|null}>} input.generate - model call.
  * @param {(request: object) => Promise<object|null>} [input.route] - model classifier.
@@ -132,6 +132,16 @@ export async function runTurn(input) {
   let last = userMessage;
   let generated = 0;
 
+  const retryMeta = (member, replyTo, routeRole, replyIndex) => ({
+    turnId,
+    memberId: member.id,
+    replyIndex,
+    replyTo: replyTo === null ? null : replyTo.id,
+    routeRole,
+    attempts: 1,
+    resolved: false,
+  });
+
   const finish = (reason) => ({ generated, reason });
 
   const pauseForBudget = () => {
@@ -199,7 +209,11 @@ export async function runTurn(input) {
       // the ephemeral `error` event alone disappears with the stream.
       let notice = null;
       try {
-        notice = appendNotice(`${member.name} 回应失败：${failure}`, 'warn');
+        notice = appendNotice(
+          `${member.name} 回应失败：${failure}`,
+          'warn',
+          retryMeta(member, replyTo, routeRole, replyIndex),
+        );
         emit({ type: 'notice', notice });
       } catch {
         /* A notice is best effort; the error event still reaches the UI. */
@@ -218,7 +232,11 @@ export async function runTurn(input) {
     }
     const text = normalizeReply(result?.text, member.name);
     if (text.length === 0) {
-      const notice = appendNotice(`${member.name} 没有产出内容，本轮已停止。`, 'warn');
+      const notice = appendNotice(
+        `${member.name} 没有产出内容，本轮已停止。`,
+        'warn',
+        retryMeta(member, replyTo, routeRole, replyIndex),
+      );
       emit({ type: 'notice', notice });
       return null;
     }

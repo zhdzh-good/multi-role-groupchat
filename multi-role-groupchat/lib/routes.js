@@ -58,6 +58,7 @@ export function registerRoutes(ctx, store) {
   register('/api/groupchat.send', ['POST'], (request) => handleSend(ctx, store, request));
   register('/api/groupchat.stop', ['POST'], (request) => handleStop(store, request));
   register('/api/groupchat.rewrite', ['POST'], (request) => handleRewrite(ctx, store, request));
+  register('/api/groupchat.retry', ['POST'], (request) => handleRetry(ctx, store, request));
   register('/api/groupchat.pin', ['POST'], (request) => handlePin(store, request));
   register('/api/groupchat.export', ['POST'], (request) => handleExport(store, request));
   register('/api/groupchat.portable-export', ['POST'], (request) => handlePortableExport(store, request));
@@ -397,7 +398,7 @@ async function handleSend(ctx, store, request) {
       getActive: () => live.state.active,
       appendMessage: (message) => store.appendMessage(body.groupId, message),
       appendRoute: (route) => store.appendRoute(body.groupId, route),
-      appendNotice: (noticeText, level) => store.appendNotice(body.groupId, noticeText, level),
+      appendNotice: (noticeText, level, retry) => store.appendNotice(body.groupId, noticeText, level, retry),
       getTotals: () => live.state.totals,
       generate,
       route: classify,
@@ -515,6 +516,157 @@ async function handleRewrite(ctx, store, request) {
     send({ type: 'supersede', target: target.id, by: replacement.id });
     send({ type: 'message', message: replacement });
     send({ type: 'totals', totals: live.state.totals });
+  });
+}
+
+/**
+ * POST retry one failed member generation from its persisted notice.
+ *
+ * Only the failed reply is regenerated. The original owner message, the route,
+ * and every successful reply stay untouched; an existing reply for the same
+ * turn/member/index is refused before any model call, so a double click cannot
+ * append two valid messages.
+ *
+ * @param {object} ctx - Host context.
+ * @param {object} store - group store.
+ * @param {Request} request - request.
+ * @returns {Promise<Response>} stream response.
+ */
+async function handleRetry(ctx, store, request) {
+  const body = await readBody(request);
+  if (typeof body.groupId !== 'string' || typeof body.noticeId !== 'string') {
+    throw new GroupChatError('缺少 groupId 或 noticeId。');
+  }
+  const live = await store.load(body.groupId);
+  const notice = live.state.notices.find((candidate) => candidate.id === body.noticeId);
+  if (notice === undefined || notice.retry === undefined) {
+    throw new GroupChatError('这条失败记录不可重试。', 404, 'groupchat/retry-not-found');
+  }
+  const retry = notice.retry;
+  if (retry.resolved === true) {
+    throw new GroupChatError('这次失败已经重试过。', 409, 'groupchat/retry-resolved');
+  }
+  const member = live.members.find((candidate) => candidate.id === retry.memberId);
+  if (member === undefined) {
+    throw new GroupChatError('该成员已不在群里，无法重试。', 409, 'groupchat/member-not-found');
+  }
+  const source = live.state.messages.find((message) => message.turnId === retry.turnId && message.role === 'user');
+  if (source === undefined) {
+    throw new GroupChatError('找不到触发这次回应的用户消息。', 404, 'groupchat/retry-source-not-found');
+  }
+  const duplicate = live.state.active.find(
+    (message) => message.turnId === retry.turnId
+      && message.memberId === retry.memberId
+      && message.replyIndex === retry.replyIndex,
+  );
+  if (duplicate !== undefined) {
+    throw new GroupChatError('这条回应已经重试成功。', 409, 'groupchat/retry-already-produced');
+  }
+  const replyTo = retry.replyTo === null ? null : live.state.byId.get(retry.replyTo);
+  if (retry.replyTo !== null && (replyTo === undefined || replyTo.status !== 'active')) {
+    throw new GroupChatError('触发这次回应的消息已不在有效历史里。', 409, 'groupchat/retry-reply-to-missing');
+  }
+  const turn = await beginTurn(store, body.groupId);
+  const defaultModel = defaultModelOf(ctx);
+  return streamResponse(store, turn, request.signal, async ({ send, signal }) => {
+    const over = budgetStop(live.state.totals, live.group.budget);
+    if (over !== null) {
+      const blocked = store.appendNotice(
+        body.groupId,
+        `预算不足（${over === 'input' ? '输入' : '输出'} token 已达上限），无法重试。`,
+        'warn',
+      );
+      send({ type: 'notice', notice: blocked });
+      send({ type: 'totals', totals: live.state.totals });
+      return;
+    }
+    const generate = createGenerator(ctx, live, defaultModel);
+    const activeBefore = live.state.active;
+    const previous = replyTo ?? activeBefore[activeBefore.length - 1] ?? source;
+    const previousName = speakerName(previous, live.members, ownerDisplayName(live.group));
+    turn.phase = 'replying';
+    turn.memberId = member.id;
+    turn.memberName = member.name;
+    send({
+      type: 'generating',
+      memberId: member.id,
+      memberName: member.name,
+      replyIndex: retry.replyIndex,
+      turnId: retry.turnId,
+      retry: notice.id,
+    });
+    const markFailed = (failure) => {
+      const resolved = store.resolveNotice(body.groupId, notice.id, {
+        retry: { ...retry, resolved: true },
+      });
+      const next = store.appendNotice(
+        body.groupId,
+        `${member.name} 重试失败：${failure}`,
+        'warn',
+        { ...retry, attempts: retry.attempts + 1, resolved: false },
+      );
+      send({ type: 'notice', notice: resolved });
+      send({ type: 'notice', notice: next });
+      send({
+        type: 'error',
+        message: failure,
+        memberId: member.id,
+        memberName: member.name,
+      });
+    };
+    try {
+      const result = await generate({
+        member,
+        activeMessages: activeBefore,
+        sourceUserText: source.text,
+        replyIndex: retry.replyIndex,
+        previousName,
+        routeRole: retry.routeRole,
+        signal,
+      });
+      if (signal.aborted) {
+        send({ type: 'stopped', reason: 'user' });
+        return;
+      }
+      const text = normalizeReply(result?.text, member.name);
+      if (text.length === 0) {
+        markFailed('没有产出内容');
+        return;
+      }
+      const mentions = parseMentions(text, live.members, {
+        selfId: member.id,
+        ownerName: ownerDisplayName(live.group),
+      });
+      const message = {
+        id: makeId('m'),
+        turnId: retry.turnId,
+        replyIndex: retry.replyIndex,
+        ts: Math.floor(Date.now() / 1000),
+        role: 'member',
+        memberId: member.id,
+        text,
+        mentions: mentions.memberIds,
+        mentionsOwner: mentions.owner,
+        replyTo: retry.replyTo,
+        status: 'active',
+        supersedes: null,
+        pinned: false,
+        usage: result?.usage ?? null,
+      };
+      await store.appendMessage(body.groupId, message);
+      const resolved = store.resolveNotice(body.groupId, notice.id, {
+        retry: { ...retry, resolved: true },
+      });
+      send({ type: 'notice', notice: resolved });
+      send({ type: 'message', message });
+      send({ type: 'totals', totals: live.state.totals });
+    } catch (error) {
+      if (signal.aborted) {
+        send({ type: 'stopped', reason: 'user' });
+        return;
+      }
+      markFailed(error instanceof Error ? error.message : String(error));
+    }
   });
 }
 

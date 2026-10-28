@@ -9,12 +9,13 @@ import { GroupStore } from '../lib/store.js';
 
 /**
  * Fake Host context exposing Connection routes, llm streaming, and the default model.
- * @param {{texts?: string[], routeText?: string}} [options] - generated texts and classifier output.
+ * @param {{texts?: string[], failures?: boolean[], routeText?: string}} [options] - generated texts, forced generation failures, and classifier output.
  * @returns {{ctx: object, routes: Map<string, object>}} fixture.
  */
 function fakeContext(options = {}) {
   const routes = new Map();
   const texts = [...(options.texts ?? ['你好。'])];
+  const failures = [...(options.failures ?? [])];
   const routeText = options.routeText ?? '{"targets":[],"reason":"","confidence":0}';
   const ctx = {
     effect: (callback) => callback(),
@@ -35,6 +36,7 @@ function fakeContext(options = {}) {
       listModels: async () => [{ id: 'fake-1', name: 'Fake One' }],
       async *stream(request) {
         const isRouter = request.system?.includes('群聊路由器') === true;
+        if (!isRouter && failures.shift() === true) throw new Error('provider down');
         const text = isRouter ? routeText : (texts.length > 0 ? texts.shift() : '……');
         yield { type: 'text-delta', text };
         yield {
@@ -110,7 +112,7 @@ async function fixture(t, options) {
 
 test('routes expose state, creation, sending, pinning, rewriting, and export', async (t) => {
   const { routes } = await fixture(t, { texts: ['你好。', '我也在。', '那好吧。'] });
-  assert.equal(routes.size, 19);
+  assert.equal(routes.size, 20);
 
   const created = await call(routes, '/api/groupchat.group-create', {
     body: {
@@ -406,6 +408,75 @@ test('routes reject invalid input without leaking internals', async (t) => {
   assert.equal(missingGroup.status, 404);
   const emptyText = await call(routes, '/api/groupchat.send', { body: { groupId: 'g_missing', text: '' } });
   assert.equal(emptyText.status, 400);
+});
+
+
+test('a failed generation retries only that reply and resolves its notice', async (t) => {
+  const { store, routes } = await fixture(t, { texts: ['重试成功。'], failures: [true] });
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: {
+      name: '重试测试群',
+      members: [{ name: '林晚', core: '林晚' }, { name: '周野', core: '周野' }],
+    },
+  });
+  const groupId = created.json.groupId;
+  const sent = await call(routes, '/api/groupchat.send', { body: { groupId, text: '@林晚 你先说' } });
+  assert.equal(sent.status, 200);
+  const failedEvents = ndjson(sent.text);
+  const failedNotice = failedEvents.find((event) => event.type === 'notice')?.notice;
+  assert.ok(failedNotice, 'the failure is persisted as a notice');
+  assert.equal(failedNotice.retry.turnId, failedEvents.find((event) => event.type === 'message').message.id);
+  assert.equal(failedNotice.retry.memberId, created.json.state.members[0].id);
+  assert.equal(failedNotice.retry.replyIndex, 1);
+  assert.equal(failedNotice.retry.resolved, false);
+
+  const retried = await call(routes, '/api/groupchat.retry', {
+    body: { groupId, noticeId: failedNotice.id },
+  });
+  assert.equal(retried.status, 200);
+  const events = ndjson(retried.text);
+  assert.ok(events.some((event) => event.type === 'message' && event.message.memberId === failedNotice.retry.memberId));
+  const resolved = events.find((event) => event.type === 'notice')?.notice;
+  assert.equal(resolved.id, failedNotice.id);
+  assert.equal(resolved.retry.resolved, true);
+  const state = events.find((event) => event.type === 'state').state;
+  assert.equal(state.messages.length, 2, 'only the owner message and the retried reply exist');
+  assert.equal(state.notices.find((notice) => notice.id === failedNotice.id).retry.resolved, true);
+
+  const again = await call(routes, '/api/groupchat.retry', {
+    body: { groupId, noticeId: failedNotice.id },
+  });
+  assert.equal(again.status, 409);
+  const view = await store.stateView(groupId);
+  assert.equal(view.messages.filter((message) => message.role === 'member').length, 1);
+});
+
+
+test('a failed retry keeps one new retryable notice without adding a message', async (t) => {
+  const { store, routes } = await fixture(t, { texts: [], failures: [true, true] });
+  const created = await call(routes, '/api/groupchat.group-create', {
+    body: {
+      name: '重试失败测试群',
+      members: [{ name: '林晚', core: '林晚' }, { name: '周野', core: '周野' }],
+    },
+  });
+  const groupId = created.json.groupId;
+  const sent = await call(routes, '/api/groupchat.send', { body: { groupId, text: '@林晚 你先说' } });
+  const first = ndjson(sent.text).find((event) => event.type === 'notice').notice;
+  const retried = await call(routes, '/api/groupchat.retry', {
+    body: { groupId, noticeId: first.id },
+  });
+  assert.equal(retried.status, 200);
+  const events = ndjson(retried.text);
+  const notices = events.filter((event) => event.type === 'notice').map((event) => event.notice);
+  assert.equal(notices[0].id, first.id);
+  assert.equal(notices[0].retry.resolved, true);
+  assert.equal(notices[1].retry.attempts, 2);
+  assert.equal(notices[1].retry.resolved, false);
+  assert.equal(events.some((event) => event.type === 'message' && event.message.role === 'member'), false);
+  const view = await store.stateView(groupId);
+  assert.equal(view.messages.length, 1, 'the failed retry adds no member message');
+  assert.equal(view.notices.filter((notice) => notice.retry?.resolved === false).length, 1);
 });
 
 

@@ -875,9 +875,10 @@ export class GroupStore {
    * @param {string} gid - group id.
    * @param {string} text - notice body.
    * @param {'info'|'warn'} [level] - severity.
+   * @param {object|null} [retry] - retry metadata for a failed generation.
    * @returns {object} notice view.
    */
-  appendNotice(gid, text, level = 'info') {
+  appendNotice(gid, text, level = 'info', retry = null) {
     const live = this.groups.get(gid);
     if (live === undefined) throw new GroupChatError('群未加载。', 409);
     const event = {
@@ -886,12 +887,43 @@ export class GroupStore {
       ts: Math.floor(Date.now() / 1000),
       text,
       level,
+      ...(retry === null ? {} : { retry }),
     };
     applyEvent(live.state, event);
     this.#enqueue(live, JSON.stringify(event)).catch((error) => {
       this.logWarn(`写入 notice 失败：${error instanceof Error ? error.message : String(error)}`);
     });
     return live.state.notices[live.state.notices.length - 1];
+  }
+
+  /**
+   * Update one persisted notice in place. Used to mark a failed generation as
+   * retried without adding a duplicate notice row.
+   * @param {string} gid - group id.
+   * @param {string} noticeId - notice to update.
+   * @param {{text?: string, level?: 'info'|'warn', retry?: object}} [patch] - fields to merge.
+   * @returns {object} updated notice view.
+   */
+  resolveNotice(gid, noticeId, patch = {}) {
+    const live = this.groups.get(gid);
+    if (live === undefined) throw new GroupChatError('群未加载。', 409);
+    const existing = live.state.notices.find((notice) => notice.id === noticeId);
+    if (existing === undefined) throw new GroupChatError('通知不存在。', 404, 'groupchat/notice-not-found');
+    const event = {
+      type: 'notice',
+      id: existing.id,
+      ts: Math.floor(Date.now() / 1000),
+      text: typeof patch.text === 'string' ? patch.text : existing.text,
+      level: patch.level === 'warn' || patch.level === 'info' ? patch.level : existing.level,
+      ...(existing.retry === undefined && patch.retry === undefined
+        ? {}
+        : { retry: { ...(existing.retry ?? {}), ...(patch.retry ?? {}) } }),
+    };
+    applyEvent(live.state, event);
+    this.#enqueue(live, JSON.stringify(event)).catch((error) => {
+      this.logWarn(`更新 notice 失败：${error instanceof Error ? error.message : String(error)}`);
+    });
+    return live.state.notices.find((notice) => notice.id === existing.id);
   }
 
   /**

@@ -110,6 +110,33 @@ test('replay applies messages, supersede, pin, notices, and cumulative usage', (
   assert.equal(state.totals.cacheReadTokens, 7);
 });
 
+test('notice retry metadata replays and resolves in place', () => {
+  const state = createState();
+  const retry = {
+    turnId: 'm_1',
+    memberId: 'c_lin',
+    replyIndex: 1,
+    replyTo: 'm_1',
+    routeRole: 'addressed',
+    attempts: 1,
+    resolved: false,
+  };
+  applyEvent(state, { type: 'notice', id: 'n_1', ts: 3, text: '林晚 回应失败', level: 'warn', retry });
+  assert.equal(state.notices.length, 1);
+  assert.deepEqual(state.notices[0].retry, retry);
+  applyEvent(state, {
+    type: 'notice',
+    id: 'n_1',
+    ts: 4,
+    text: '林晚 回应失败',
+    level: 'warn',
+    retry: { ...retry, resolved: true },
+  });
+  assert.equal(state.notices.length, 1, 'resolution updates the same notice');
+  assert.equal(state.notices[0].retry.resolved, true);
+});
+
+
 test('route events are replayed and their usage joins group totals', () => {
   const state = replayEvents([
     { type: 'message', id: 'm_1', turnId: 'm_1', ts: 1, role: 'user', text: '谁去开门？' },
