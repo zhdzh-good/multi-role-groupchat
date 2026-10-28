@@ -6,9 +6,7 @@
 **多角色群聊插件**：你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天。消息默认全群可见，
 谁都可以用 `@名字` 把话交给别人。成员可以拥有只给自己看的私有记忆和私人关系。
 
-> 当前版本：**v1.4.0**（角色库 / 拉群、失败诊断、多标签同步） · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
->
-> 开发版新增（未发版）：失败生成可单条重试；展开历史按 300 条分页。
+> 当前版本：**v1.5.0**（失败重试、长历史分页、角色库 / 拉群、失败诊断、多标签同步） · [插件详细文档](./multi-role-groupchat/README.md) · [Roadmap](./ROADMAP.md)
 
 ## v1.1 更新：智能路由
 
@@ -39,11 +37,15 @@
 
 当前只支持 JSON；YAML 留作后续可选项。
 
+## v1.5 更新：失败重试与长历史分页
+
+- **失败重试**：失败通知带「重试」按钮，只重发该成员这一条，不改写已有消息；预算不足和用户停止不提供自动重试
+- **长历史分页**：展开全部历史时一次最多渲染 300 条，点「显示更早」再分页加载，避免 5000 条消息一次进入 DOM
+
 ## v1.4 更新：角色库、失败诊断与多标签同步
 
 - **角色库 / 拉群**：角色是全局资产；新建群从角色库勾选 2–3 个角色，群只保存 `characterIds`；改名/设定一次同步所有群
 - **失败诊断**：生成失败会写入可重放的 `notice`；群设置显示最近一次路由的目标 / 旁听 / 方法 / 原因
-- **失败重试**：失败通知带「重试」按钮，只重发该成员这一条，不改写已有消息；预算不足和用户停止不提供自动重试
 - **多标签页同步**：发消息、钉住、改群/角色后，其他标签页约 250 ms 内刷新；BroadcastChannel 不可用时回退到 `storage` 事件
 - **私有记忆整理**：编辑页显示字数，可一键清空后保存；导出勾选私有时显示醒目警告，Markdown 永远不含私有内容
 
@@ -102,7 +104,7 @@ plugin_manager action=install_bundle target=<仓库路径>/multi-role-groupchat
 或直接安装 GitHub Release 的预构建 tarball：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.4.0/zhdzh-good-multi-role-groupchat-1.4.0.tgz"
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.5.0/zhdzh-good-multi-role-groupchat-1.5.0.tgz"
 ```
 
 安装或升级后刷新 Web 页面，左侧栏出现「群聊」。数据保存在
