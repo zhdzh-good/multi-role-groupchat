@@ -327,6 +327,11 @@ export function buildPrompt(input) {
     tail.push('=== 你私下的关系 ===', ...privateRelationLines);
   }
 
+  const scene = typeof group?.scene === 'string' ? group.scene.trim() : '';
+  if (scene.length > 0) {
+    tail.push('=== 当前场景 ===', scene);
+  }
+
   tail.push(
     '=== 本场状态 ===',
     `${owner.name}刚说：${sourceUserText}`,

@@ -226,6 +226,36 @@ test('prompt splits stable prefix from per-turn tail and omits the rewrite targe
   assert.match(tail, /这是本次发言的第 2 条回应；上一条来自 周野。/);
 });
 
+test('manual scene is injected into the member tail and omitted when empty', () => {
+  const member = {
+    id: 'c_lin',
+    name: '林晚',
+    core: '店主。',
+    extended: '',
+    extendedEnabled: false,
+    public: { oneLiner: '店主', relations: {} },
+  };
+  const base = {
+    group: {
+      name: '场景群',
+      brief: '',
+      scene: '晚上九点，旧城书店停电，雨声很大。',
+      policy: { ...DEFAULT_POLICY },
+      budget: { ...DEFAULT_BUDGET },
+    },
+    members: [member, { id: 'c_zhou', name: '周野', public: { oneLiner: '电工', relations: {} } }],
+    activeMessages: [],
+    member,
+    sourceUserText: '谁去关门？',
+    replyIndex: 1,
+    previousName: '用户',
+  };
+  const withScene = buildPrompt(base);
+  assert.match(withScene.messages.at(-1).content[0].text, /=== 当前场景 ===\n\n晚上九点，旧城书店停电/);
+  const withoutScene = buildPrompt({ ...base, group: { ...base.group, scene: '' } });
+  assert.doesNotMatch(withoutScene.messages.at(-1).content[0].text, /当前场景/);
+});
+
 test('prompt tells an addressee and a bystander how to respond', () => {
   const group = {
     name: '测试群',

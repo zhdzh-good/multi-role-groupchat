@@ -51,6 +51,7 @@ const members = [
 const group = {
   name: '旧城书店',
   brief: '停电的晚上。',
+  scene: '晚上九点，停电，雨声很大。',
   owner: {
     name: '阿明',
     oneLiner: '常客',
@@ -68,6 +69,7 @@ test('group bundles omit local ids and key relations by display name', () => {
   assert.equal(bundle.format, GROUP_FORMAT);
   assert.equal(bundle.version, 1);
   assert.equal(bundle.group.name, '旧城书店');
+  assert.equal(bundle.group.scene, '晚上九点，停电，雨声很大。');
   assert.equal(bundle.group.owner.name, '阿明');
   assert.deepEqual(bundle.group.owner.relations, { 林晚: '熟客' });
   assert.deepEqual(bundle.members[0].relations, { 周野: '旧识' });
@@ -91,6 +93,7 @@ test('group import normalization preserves policy, relations, and warnings', () 
   bundle.unknown = 'ignored';
   const normalized = normalizeGroupBundle(bundle);
   assert.equal(normalized.name, '旧城书店');
+  assert.equal(normalized.scene, '晚上九点，停电，雨声很大。');
   assert.equal(normalized.policy.bystanderChance, 55);
   assert.equal(normalized.budget.maxOutputTokens, 1234);
   assert.equal(normalized.owner.relations.林晚, '熟客');

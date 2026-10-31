@@ -45,6 +45,9 @@ const MAX_MEMORY_CHARS = 4000;
 /** Largest accepted single relation description. */
 const MAX_RELATION_CHARS = 200;
 
+/** Largest accepted manual scene note. */
+const MAX_SCENE_CHARS = 800;
+
 /** Largest accepted avatar data URL, in characters. */
 const MAX_AVATAR_CHARS = 300000;
 
@@ -86,6 +89,7 @@ export function buildGroupBundle({ group, members, includeAvatars = true, includ
     group: {
       name: group.name,
       brief: group.brief ?? '',
+      scene: group.scene ?? '',
       owner: {
         name: owner.name,
         oneLiner: owner.oneLiner ?? '',
@@ -247,9 +251,10 @@ export function normalizeGroupBundle(value) {
   if (groupRaw === null) throw new PortableError('群配置缺少 group 对象。');
 
   warnUnknown(value, ['format', 'version', 'app', 'exportedAt', 'group', 'members'], '群配置', warnings);
-  warnUnknown(groupRaw, ['name', 'brief', 'owner', 'policy', 'budget', 'model'], 'group', warnings);
+  warnUnknown(groupRaw, ['name', 'brief', 'scene', 'owner', 'policy', 'budget', 'model'], 'group', warnings);
   const name = requiredName(groupRaw.name, '群名', 40);
   const brief = stringField(groupRaw.brief, '群简介', 2000);
+  const scene = stringField(groupRaw.scene, '场景', MAX_SCENE_CHARS).trim();
   const rawMembers = Array.isArray(value.members) ? value.members : null;
   if (rawMembers === null) throw new PortableError('群配置缺少 members 数组。');
   if (rawMembers.length < 2 || rawMembers.length > 3) {
@@ -318,6 +323,7 @@ export function normalizeGroupBundle(value) {
   return {
     name,
     brief,
+    scene,
     owner,
     members,
     policy: normalizePolicy(groupRaw.policy),
@@ -453,6 +459,7 @@ export function previewGroupBundle(bundle, meta = {}) {
   return {
     groupName: bundle.name,
     brief: bundle.brief,
+    scene: bundle.scene ?? '',
     ownerName: bundle.owner.name,
     memberCount: bundle.members.length,
     members: bundle.members.map((member) => ({

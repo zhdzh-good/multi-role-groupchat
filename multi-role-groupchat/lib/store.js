@@ -51,6 +51,22 @@ const MAX_STYLE_CHARS = 300;
 /** Private, manually curated memory; never enters shared prompts or exports by default. */
 const MAX_MEMORY_CHARS = 4000;
 
+/** Manual scene note: time, place, weather, atmosphere. Not a state machine. */
+const MAX_SCENE_CHARS = 800;
+
+/**
+ * Normalize the optional manual scene note.
+ * @param {unknown} value - candidate text.
+ * @returns {string} trimmed scene.
+ */
+function normalizeScene(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') throw new GroupChatError('场景必须是文本。');
+  const scene = value.trim();
+  if ([...scene].length > MAX_SCENE_CHARS) throw new GroupChatError(`场景最多 ${MAX_SCENE_CHARS} 个字符。`);
+  return scene;
+}
+
 /**
  * The plugin's data directory. `DSH_HOME` is set by a profile-launched
  * Harness; the fallback keeps a bare `dsh` launch working.
@@ -419,6 +435,7 @@ export class GroupStore {
       id: gid,
       name,
       brief,
+      scene: normalizeScene(input.scene),
       owner,
       characterIds,
       memberIds: characterIds,
@@ -471,6 +488,7 @@ export class GroupStore {
     const live = await this.createGroup({
       name: input.name,
       brief: input.brief,
+      scene: input.scene ?? '',
       owner: {
         name: input.owner.name,
         oneLiner: input.owner.oneLiner,
@@ -543,6 +561,7 @@ export class GroupStore {
       const candidate = { ...ownerProfile(group), ...(patch.owner ?? {}) };
       group.owner = normalizeOwner(candidate, live.members);
     }
+    if (patch?.scene !== undefined) group.scene = normalizeScene(patch.scene);
     if (patch?.policy !== undefined) group.policy = normalizePolicy(patch.policy);
     if (patch?.budget !== undefined) group.budget = normalizeBudget(patch.budget);
     if (patch?.model !== undefined) group.model = normalizeModel(patch.model);
@@ -1138,6 +1157,7 @@ function normalizeGroup(raw, gid) {
     id: gid,
     name: typeof raw.name === 'string' && raw.name.trim().length > 0 ? raw.name : '未命名群聊',
     brief: typeof raw.brief === 'string' ? raw.brief : '',
+    scene: typeof raw.scene === 'string' ? raw.scene : '',
     characterIds,
     memberIds,
     owner: normalizeOwner(raw.owner ?? {}, null),

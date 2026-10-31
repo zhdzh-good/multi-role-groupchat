@@ -130,7 +130,7 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   const groupId = created.json.groupId;
 
   const configured = await call(routes, '/api/groupchat.group-update', {
-    body: { groupId, policy: { bystanderChance: 0 } },
+    body: { groupId, scene: '晚上九点，旧城书店停电。', policy: { bystanderChance: 0 } },
   });
   assert.equal(configured.status, 200);
 
@@ -139,6 +139,7 @@ test('routes expose state, creation, sending, pinning, rewriting, and export', a
   assert.equal(state.json.selectedId, groupId);
   assert.deepEqual(state.json.defaultModel, { provider: 'fake', model: 'fake-1' });
   assert.equal(state.json.selected.messages.length, 0);
+  assert.equal(state.json.selected.group.scene, '晚上九点，旧城书店停电。');
 
   const models = await call(routes, '/api/groupchat.models', { method: 'GET' });
   assert.equal(models.status, 200);

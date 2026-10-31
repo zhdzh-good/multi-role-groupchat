@@ -207,6 +207,7 @@ async function handleGroupCreate(store, request) {
   const live = await store.createGroup({
     name: body.name,
     brief: body.brief,
+    scene: body.scene,
     owner: body.owner,
     policy: body.policy,
     budget: body.budget,
@@ -228,6 +229,7 @@ async function handleGroupUpdate(store, request) {
   await store.updateGroup(body.groupId, {
     name: body.name,
     brief: body.brief,
+    scene: body.scene,
     owner: body.owner,
     policy: body.policy,
     budget: body.budget,

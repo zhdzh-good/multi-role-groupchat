@@ -310,6 +310,24 @@ test('owner profile persists, validates, and labels owner messages', async (t) =
 });
 
 
+test('manual scene persists, updates, and is length-checked', async (t) => {
+  const { store, root } = await fixture(t);
+  const live = await store.createGroup({
+    name: '场景测试群',
+    scene: '晚上九点，旧城书店停电。',
+    members: [{ name: '甲', core: '' }, { name: '乙', core: '' }],
+  });
+  assert.equal(live.group.scene, '晚上九点，旧城书店停电。');
+  await store.updateGroup(live.gid, { scene: '雨停了，门口有脚步声。' });
+  const reloaded = new GroupStore(root);
+  const view = await reloaded.stateView(live.gid);
+  assert.equal(view.group.scene, '雨停了，门口有脚步声。');
+  await assert.rejects(
+    reloaded.updateGroup(live.gid, { scene: 'x'.repeat(801) }),
+    (error) => error instanceof GroupChatError && /场景最多/.test(error.message),
+  );
+});
+
 test('deleteGroup removes the directory, rejects a live turn, and clears caches', async (t) => {
   const { store } = await fixture(t);
   const live = await store.createGroup({

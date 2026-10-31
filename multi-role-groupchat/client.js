@@ -24,6 +24,8 @@ window.__ModuleLoader__.load({
 .mgc-groupName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mgc-chevron{flex:none;color:var(--dsw-alias-label-secondary)}
 .mgc-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:20px}
+.mgc-sceneChip{max-width:min(360px,52vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent);color:var(--dsw-alias-brand-primary);font:inherit;font-size:11px;line-height:18px;padding:0 6px;cursor:pointer}
+.mgc-sceneChip:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,transparent)}
 .mgc-dot{width:3px;height:3px;border-radius:50%;background:var(--dsw-alias-label-secondary);flex:none}
 .mgc-headActions{display:flex;align-items:center;gap:8px;flex:none;padding-top:2px}
 .mgc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,opacity .12s}
@@ -42,6 +44,7 @@ window.__ModuleLoader__.load({
 .mgc-threadEmpty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:240px;color:var(--dsw-alias-label-secondary);font-size:13px;text-align:center;padding:40px 20px}
 .mgc-threadEmptyGlyph{opacity:.55}
 .mgc-msg{display:flex;gap:10px;padding:7px 0;position:relative}
+.mgc-msgFocus{border-radius:10px;box-shadow:0 0 0 2px color-mix(in srgb,var(--dsw-alias-brand-primary) 55%,transparent);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 6%,transparent)}
 .mgc-msgCont{padding-top:1px}
 .mgc-av{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;flex:none;margin-top:1px;color:#fff;font-size:12px;font-weight:600;line-height:1;letter-spacing:.02em;user-select:none}
 .mgc-avSm{width:26px;height:26px;font-size:11px}
@@ -89,6 +92,21 @@ window.__ModuleLoader__.load({
 .mgc-composer{flex:none;border-top:.5px solid var(--dsw-alias-border-l1);padding:10px clamp(16px,3vw,36px) 16px;background:var(--dsw-alias-bg-base)}
 .mgc-composerInner{max-width:840px;margin:0 auto}
 .mgc-banner{display:flex;align-items:flex-start;gap:8px;margin:0 0 8px;padding:7px 10px;border-radius:9px;font-size:12px;line-height:18px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 9%,transparent);color:var(--dsw-alias-state-error-primary)}
+.mgc-searchPanel{flex:none;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);padding:10px clamp(16px,3vw,36px) 12px}
+.mgc-searchRow{display:flex;align-items:center;gap:8px;max-width:840px;margin:0 auto;color:var(--dsw-alias-label-secondary)}
+.mgc-searchInput{flex:1;min-width:0;height:32px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l2);border-radius:9px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;outline:none}
+.mgc-searchInput:focus{border-color:var(--dsw-alias-brand-primary)}
+.mgc-searchMeta{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;max-width:840px;margin:7px auto 0}
+.mgc-searchSelect{width:auto;max-width:180px;height:28px;padding:0 8px;font-size:12px}
+.mgc-searchResults{max-width:840px;max-height:260px;overflow:auto;margin:8px auto 0;display:flex;flex-direction:column;gap:2px}
+.mgc-searchResult{display:flex;flex-direction:column;gap:3px;width:100%;padding:7px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.mgc-searchResult:hover,.mgc-searchResult:focus-visible{background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent);outline:none}
+.mgc-searchResultHead{display:flex;align-items:center;gap:8px;min-width:0;font-size:11px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.mgc-searchName{font-weight:600;color:var(--dsw-alias-label-primary)}
+.mgc-searchTime{font-variant-numeric:tabular-nums}
+.mgc-searchSnippet{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.mgc-searchSnippet mark{padding:0 2px;border-radius:3px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 22%,transparent);color:var(--dsw-alias-label-primary)}
+.mgc-searchEmpty{max-width:840px;margin:8px auto 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
 .mgc-bannerWarn{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 10%,transparent);color:var(--dsw-alias-state-warn-primary)}
 .mgc-banner button{margin-left:auto;flex:none}
 .mgc-inputWrap{display:flex;flex-direction:column;gap:2px;border:.5px solid var(--dsw-alias-border-l2);border-radius:16px;background:var(--dsw-alias-bg-layer-1);padding:8px 8px 6px 10px;transition:border-color .15s}
@@ -467,6 +485,16 @@ color-scheme:dark;
       'messages.stoppedTag': '已停止，未保存',
       'messages.rewrittenTag': '重写中…',
       'messages.empty': '还没有消息。说点什么，或者在输入框里 @ 一位成员。',
+      'search.open': '搜索消息',
+      'search.close': '关闭搜索',
+      'search.placeholder': '搜索当前群的消息…',
+      'search.all': '全部角色',
+      'search.owner': '我',
+      'search.results': '{n} 条结果',
+      'search.empty': '没有匹配的消息。',
+      'search.hint': '搜索全部历史，包括已折叠消息；最多显示 50 条。',
+      'search.folded': '已折叠',
+      'search.jump': '跳到消息',
       'messages.emptyHint': '没有 @ 时，插件会先判断你在对谁说；其他人按概率接话。',
       'composer.placeholder': '说点什么…（Enter 发送，Shift+Enter 换行）',
       'composer.send': '发送',
@@ -493,6 +521,11 @@ color-scheme:dark;
       'common.add': '添加',
       'group.name': '群名',
       'group.brief': '群简介',
+      'group.scene': '当前场景（可选）',
+      'group.sceneHint': '手动记录时间、地点、天气或气氛，每轮注入 prompt；不会自动推进剧情。',
+      'group.scenePlaceholder': '例如：晚上九点，旧城书店，停电，雨声很大。',
+      'header.scene': '场景：{scene}',
+      'header.sceneEdit': '编辑当前场景',
       'group.policyTitle': '接话与路由',
       'group.replyMode': '接话模式',
       'group.replyModeValue': '智能路由：目标必答，其他人按概率接话',
@@ -652,6 +685,7 @@ color-scheme:dark;
       'portable.groupExported': '群配置已下载。',
       'portable.previewTitle': '导入预览',
       'portable.previewOwner': '我的角色：{name}',
+      'portable.previewScene': '当前场景：{scene}',
       'portable.previewMembers': '成员：{count} 人',
       'portable.previewPolicy': '接话：{targets} 个目标 · 其他人 {chance}%',
       'portable.previewAvatars': '头像：{count} 个',
@@ -758,6 +792,16 @@ color-scheme:dark;
       'messages.stoppedTag': 'Stopped, not saved',
       'messages.rewrittenTag': 'Rewriting…',
       'messages.empty': 'No messages yet. Say something, or @ a member in the composer.',
+      'search.open': 'Search messages',
+      'search.close': 'Close search',
+      'search.placeholder': 'Search messages in this group…',
+      'search.all': 'All members',
+      'search.owner': 'Me',
+      'search.results': '{n} results',
+      'search.empty': 'No matching messages.',
+      'search.hint': 'Searches the full history, including folded messages; up to 50 results.',
+      'search.folded': 'Folded',
+      'search.jump': 'Jump to message',
       'messages.emptyHint': 'Without an @, the router first works out who you mean; the others may chime in by chance.',
       'composer.placeholder': 'Say something… (Enter to send, Shift+Enter for a new line)',
       'composer.send': 'Send',
@@ -784,6 +828,11 @@ color-scheme:dark;
       'common.add': 'Add',
       'group.name': 'Group name',
       'group.brief': 'Brief',
+      'group.scene': 'Current scene (optional)',
+      'group.sceneHint': 'A manual time, place, weather, or mood note injected into every turn. It never advances the plot on its own.',
+      'group.scenePlaceholder': 'e.g. 9 pm, the old bookshop, power out, heavy rain.',
+      'header.scene': 'Scene: {scene}',
+      'header.sceneEdit': 'Edit current scene',
       'group.policyTitle': 'Routing and replies',
       'group.replyMode': 'Reply mode',
       'group.replyModeValue': 'Smart routing: addressees answer, others may chime in',
@@ -943,6 +992,7 @@ color-scheme:dark;
       'portable.groupExported': 'Group config downloaded.',
       'portable.previewTitle': 'Import preview',
       'portable.previewOwner': 'My character: {name}',
+      'portable.previewScene': 'Current scene: {scene}',
       'portable.previewMembers': 'Members: {count}',
       'portable.previewPolicy': 'Routing: {targets} targets · others {chance}%',
       'portable.previewAvatars': 'Avatars: {count}',
@@ -998,6 +1048,42 @@ color-scheme:dark;
       const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       if (!withDate) return time;
       return `${date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })} ${time}`;
+    }
+
+    /** Hard cap for one search result set. */
+    const SEARCH_LIMIT = 50;
+
+    /**
+     * Search effective messages in the current group.
+     * @param {Array<object>} messages - effective messages.
+     * @param {string} query - raw query.
+     * @param {string} memberFilter - 'all', 'owner', or a member id.
+     * @param {string} ownerName - owner display name.
+     * @returns {Array<object>} newest-first matches with snippet offsets.
+     */
+    function searchMessages(messages, query, memberFilter, ownerName) {
+      const needle = query.trim().toLocaleLowerCase();
+      if (needle.length === 0) return [];
+      const results = [];
+      for (let index = messages.length - 1; index >= 0 && results.length < SEARCH_LIMIT; index -= 1) {
+        const message = messages[index];
+        const text = typeof message?.text === 'string' ? message.text : '';
+        if (text.length === 0) continue;
+        if (memberFilter === 'owner' && message.role !== 'user') continue;
+        if (memberFilter !== 'all' && memberFilter !== 'owner' && message.memberId !== memberFilter) continue;
+        const at = text.toLocaleLowerCase().indexOf(needle);
+        if (at < 0) continue;
+        results.push({
+          id: message.id,
+          index,
+          at,
+          text,
+          name: message.role === 'user' ? ownerName : message.memberName ?? '成员',
+          ts: message.ts,
+          folded: message.folded === true,
+        });
+      }
+      return results;
     }
 
     /** Palette used for member avatars (artwork colors, not theme tokens). */
@@ -1904,6 +1990,10 @@ color-scheme:dark;
     function IconChevron({ size = 14 }) {
       return h(Svg, { size }, h('path', { d: 'M6 9l6 6 6-6' }));
     }
+    /** @param {{size?: number}} props - size. @returns {any} search icon. */
+    function IconSearch({ size = 14 }) {
+      return h(Svg, { size }, h('circle', { cx: 10.5, cy: 10.5, r: 6.5 }), h('path', { d: 'M16 16l4.5 4.5' }));
+    }
     /** @param {{size?: number}} props - size. @returns {any} send icon. */
     function IconSend({ size = 14 }) {
       return h(Svg, { size }, h('path', { d: 'M4 12L20 4l-6 16-3-7-7-1Z' }));
@@ -2032,7 +2122,7 @@ color-scheme:dark;
      * @param {object} props - message and callbacks.
      * @returns {any} element.
      */
-    function MessageRow({ message, members, owner: ownerProfile, t, continuation, canRewrite, busy, rewriting, onPin, onRewrite }) {
+    function MessageRow({ message, members, owner: ownerProfile, t, continuation, canRewrite, busy, rewriting, focused, onPin, onRewrite }) {
       const [copied, setCopied] = useState(false);
       const timer = useRef(null);
       useEffect(() => () => clearTimeout(timer.current), []);
@@ -2066,7 +2156,7 @@ color-scheme:dark;
       return h(
         'article',
         {
-          className: `mgc-msg${isOwner ? ' mgc-msgOwner' : ''}${continuation ? ' mgc-msgCont' : ''}${message.folded ? ' mgc-foldMsg' : ''}`,
+          className: `mgc-msg${isOwner ? ' mgc-msgOwner' : ''}${continuation ? ' mgc-msgCont' : ''}${message.folded ? ' mgc-foldMsg' : ''}${focused ? ' mgc-msgFocus' : ''}`,
           'data-message-id': message.id,
           'data-role': isOwner ? 'owner' : 'member',
         },
@@ -2218,7 +2308,7 @@ color-scheme:dark;
      * @param {object} props - thread inputs.
      * @returns {any} element.
      */
-    function Thread({ state, t, showFolded, onToggleFolded, onPin, onRewrite, onRetry }) {
+    function Thread({ state, t, showFolded, onToggleFolded, onPin, onRewrite, onRetry, focusId }) {
       const wrapRef = useRef(null);
       const stick = useRef(true);
       const messages = state.messages;
@@ -2226,6 +2316,12 @@ color-scheme:dark;
       useEffect(() => {
         setRenderCount(300);
       }, [state.group?.id, showFolded]);
+      useEffect(() => {
+        if (focusId === null) return;
+        const index = messages.findIndex((message) => message.id === focusId);
+        if (index < 0) return;
+        setRenderCount((count) => Math.max(count, messages.length - index + 24));
+      }, [focusId, messages.length]);
       const allVisible = showFolded ? messages : messages.filter((message) => !message.folded);
       const hiddenCount = Math.max(0, allVisible.length - renderCount);
       const visible = hiddenCount > 0 ? allVisible.slice(hiddenCount) : allVisible;
@@ -2251,6 +2347,22 @@ color-scheme:dark;
         const element = wrapRef.current;
         if (element !== null) element.scrollTop = element.scrollHeight;
       }, [state.group?.id]);
+      useEffect(() => {
+        if (focusId === null) return undefined;
+        const timer = setTimeout(() => {
+          const wrap = wrapRef.current;
+          if (wrap === null) return;
+          const target = wrap.querySelector(`[data-message-id="${focusId}"]`);
+          if (target === null) return;
+          const targetRect = target.getBoundingClientRect();
+          const wrapRect = wrap.getBoundingClientRect();
+          const top = wrap.scrollTop + targetRect.top - wrapRect.top
+            - wrap.clientHeight / 2 + targetRect.height / 2;
+          wrap.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+          stick.current = false;
+        }, 80);
+        return () => clearTimeout(timer);
+      }, [focusId, renderCount]);
       const onScroll = () => {
         const element = wrapRef.current;
         if (element === null) return;
@@ -2328,6 +2440,7 @@ color-scheme:dark;
                 && message.folded !== true,
               busy: state.busy,
               rewriting: state.rewritingId === message.id,
+              focused: focusId === message.id,
               onPin,
               onRewrite,
             });
@@ -2577,12 +2690,13 @@ color-scheme:dark;
      * @param {object} props - header inputs.
      * @returns {any} element.
      */
-    function Header({ state, t, onOpen, onToggleRail, railOpen }) {
+    function Header({ state, t, onOpen, onToggleRail, onSearch, searchOpen, railOpen }) {
       const model = state.defaultModel;
       const modelText = model === null ? t('group.noDefaultModel') : `${model.provider} / ${model.model}`;
       const used = state.totals.inputTokens + state.totals.outputTokens;
       const max = state.budget?.maxInputTokens ?? 0;
       const ratio = max > 0 ? Math.min(1, used / max) : 0;
+      const scene = typeof state.group.scene === 'string' ? state.group.scene.trim() : '';
       return h(
         'header',
         { className: 'mgc-header' },
@@ -2617,6 +2731,21 @@ color-scheme:dark;
             state.pinnedCount > 0 ? h('span', null, t('header.pinned', { n: state.pinnedCount })) : null,
             max > 0 ? h('span', { className: 'mgc-dot' }) : null,
             max > 0 ? h('span', null, t('header.budget', { used: fmtTokens(used), max: fmtTokens(max) })) : null,
+            scene.length > 0 ? h('span', { className: 'mgc-dot' }) : null,
+            scene.length > 0
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'mgc-sceneChip',
+                    onClick: () => onOpen('group'),
+                    title: t('header.sceneEdit'),
+                  },
+                  t('header.scene', {
+                    scene: [...scene].length > 36 ? `${[...scene].slice(0, 36).join('')}…` : scene,
+                  }),
+                )
+              : null,
           ),
           max > 0
             ? h(
@@ -2639,6 +2768,18 @@ color-scheme:dark;
             : null,
           h(
             'button',
+            {
+              type: 'button',
+              className: 'mgc-iconBtn',
+              onClick: onSearch,
+              title: t('search.open'),
+              'aria-label': t('search.open'),
+              'aria-expanded': searchOpen,
+            },
+            h(IconSearch, { size: 16 }),
+          ),
+          h(
+            'button',
             { type: 'button', className: 'mgc-btn', onClick: () => onOpen('group') },
             t('header.manage'),
           ),
@@ -2648,6 +2789,113 @@ color-scheme:dark;
             t('header.export'),
           ),
         ),
+      );
+    }
+
+    /**
+     * Highlighted snippet for one search result.
+     * @param {{result: object, query: string}} props - result and raw query.
+     * @returns {any} element.
+     */
+    function SearchSnippet({ result, query }) {
+      const needle = query.trim();
+      const start = Math.max(0, result.at - 28);
+      const end = Math.min(result.text.length, result.at + needle.length + 44);
+      return h(
+        'span',
+        { className: 'mgc-searchSnippet' },
+        start > 0 ? '…' : '',
+        result.text.slice(start, result.at),
+        h('mark', null, result.text.slice(result.at, result.at + needle.length)),
+        result.text.slice(result.at + needle.length, end),
+        end < result.text.length ? '…' : '',
+      );
+    }
+
+    /**
+     * Inline search over the current group's full effective history.
+     * @param {object} props - search state and handlers.
+     * @returns {any} element.
+     */
+    function SearchPanel({ state, t, query, onQuery, memberFilter, onMemberFilter, onClose, onJump }) {
+      const input = useRef(null);
+      useEffect(() => {
+        input.current?.focus();
+      }, []);
+      const results = useMemo(
+        () => searchMessages(state.messages, query, memberFilter, state.owner?.name ?? t('messages.owner')),
+        [state.messages, query, memberFilter, state.owner?.name, t],
+      );
+      const hasQuery = query.trim().length > 0;
+      return h(
+        'section',
+        { className: 'mgc-searchPanel', role: 'search', 'aria-label': t('search.open') },
+        h(
+          'div',
+          { className: 'mgc-searchRow' },
+          h(IconSearch, { size: 15 }),
+          h('input', {
+            ref: input,
+            className: 'mgc-searchInput',
+            value: query,
+            onChange: (event) => onQuery(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === 'Escape') onClose();
+            },
+            placeholder: t('search.placeholder'),
+            'aria-label': t('search.placeholder'),
+          }),
+          h(
+            'button',
+            { type: 'button', className: 'mgc-iconBtn', onClick: onClose, title: t('search.close'), 'aria-label': t('search.close') },
+            h(IconClose, { size: 15 }),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'mgc-searchMeta' },
+          h(
+            'select',
+            {
+              className: 'mgc-select mgc-searchSelect',
+              value: memberFilter,
+              onChange: (event) => onMemberFilter(event.target.value),
+              'aria-label': t('search.all'),
+            },
+            h('option', { value: 'all' }, t('search.all')),
+            h('option', { value: 'owner' }, t('search.owner')),
+            state.members.map((member) => h('option', { key: member.id, value: member.id }, member.name)),
+          ),
+          h('span', { className: 'mgc-hint' }, hasQuery ? t('search.results', { n: results.length }) : t('search.hint')),
+        ),
+        !hasQuery
+          ? null
+          : results.length === 0
+            ? h('div', { className: 'mgc-searchEmpty' }, t('search.empty'))
+            : h(
+                'div',
+                { className: 'mgc-searchResults' },
+                results.map((result) =>
+                  h(
+                    'button',
+                    {
+                      key: result.id,
+                      type: 'button',
+                      className: 'mgc-searchResult',
+                      onClick: () => onJump(result.id),
+                      title: t('search.jump'),
+                    },
+                    h(
+                      'span',
+                      { className: 'mgc-searchResultHead' },
+                      h('span', { className: 'mgc-searchName' }, result.name),
+                      h('span', { className: 'mgc-searchTime' }, fmtTime(result.ts, true)),
+                      result.folded ? h('span', { className: 'mgc-tag' }, t('search.folded')) : null,
+                    ),
+                    h(SearchSnippet, { result, query }),
+                  ),
+                ),
+              ),
       );
     }
 
@@ -2696,6 +2944,10 @@ color-scheme:dark;
       const [creating, setCreating] = useState(false);
       const [showFolded, setShowFolded] = useState(false);
       const [railOpen, setRailOpen] = useState(false);
+      const [searchOpen, setSearchOpen] = useState(false);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [searchMember, setSearchMember] = useState('all');
+      const [focusId, setFocusId] = useState(null);
       useEffect(() => {
         store.load();
       }, [store]);
@@ -2703,7 +2955,22 @@ color-scheme:dark;
         setShowFolded(false);
         setDrawer(null);
         setRailOpen(false);
+        setSearchOpen(false);
+        setSearchQuery('');
+        setSearchMember('all');
+        setFocusId(null);
       }, [state.group?.id]);
+      useEffect(() => {
+        if (focusId === null) return undefined;
+        const timer = setTimeout(() => setFocusId(null), 2200);
+        return () => clearTimeout(timer);
+      }, [focusId]);
+      const jumpToMessage = (messageId) => {
+        if (!state.messages.some((message) => message.id === messageId)) return;
+        setSearchOpen(false);
+        setShowFolded(true);
+        setFocusId(messageId);
+      };
       useEffect(() => {
         if (state.activeTurn === null || state.busy) return undefined;
         const id = setInterval(() => store.load(state.selectedId, { quiet: true }), 1500);
@@ -2772,8 +3039,22 @@ color-scheme:dark;
             t,
             onOpen: (kind) => setDrawer(kind),
             onToggleRail: () => setRailOpen((open) => !open),
+            onSearch: () => setSearchOpen((open) => !open),
+            searchOpen,
             railOpen,
           }),
+          searchOpen
+            ? h(SearchPanel, {
+                state,
+                t,
+                query: searchQuery,
+                onQuery: setSearchQuery,
+                memberFilter: searchMember,
+                onMemberFilter: setSearchMember,
+                onClose: () => setSearchOpen(false),
+                onJump: jumpToMessage,
+              })
+            : null,
           h(Thread, {
             state: uiState,
             t,
@@ -2782,6 +3063,7 @@ color-scheme:dark;
             onPin: (messageId, pinned) => store.pin(messageId, pinned),
             onRewrite: (messageId) => store.rewrite(messageId),
             onRetry: (noticeId) => store.retryNotice(noticeId),
+            focusId,
           }),
           state.error !== null || state.actionError !== null || state.actionNotice !== null
             ? h('div', { className: 'mgc-bannerSlot' }, h(Banners, { state, t, store }))
@@ -2993,6 +3275,7 @@ color-scheme:dark;
         () => ({
           name: group.name,
           brief: group.brief ?? '',
+          scene: group.scene ?? '',
           smartRouting: group.policy.smartRouting !== false,
           maxMentionReplies: group.policy.maxMentionReplies,
           bystanderChance: group.policy.bystanderChance ?? 30,
@@ -3033,6 +3316,7 @@ color-scheme:dark;
           await store.saveGroup({
             name: draft.name.trim(),
             brief: draft.brief,
+            scene: draft.scene,
             policy: {
               smartRouting: draft.smartRouting,
               maxMentionReplies: Number(draft.maxMentionReplies),
@@ -3100,6 +3384,20 @@ color-scheme:dark;
             onChange: (event) => patch('brief', event.target.value),
             placeholder: t('create.briefPlaceholder'),
           }),
+        ),
+        h(
+          'div',
+          { className: 'mgc-field' },
+          h('label', { className: 'mgc-label', htmlFor: 'mgc-group-scene' }, t('group.scene')),
+          h('textarea', {
+            id: 'mgc-group-scene',
+            className: 'mgc-textarea2',
+            value: draft.scene,
+            maxLength: 800,
+            onChange: (event) => patch('scene', event.target.value),
+            placeholder: t('group.scenePlaceholder'),
+          }),
+          h('div', { className: 'mgc-hint' }, t('group.sceneHint')),
         ),
         h('div', { className: 'mgc-label', style: { margin: '4px 0 8px' } }, t('group.policyTitle')),
         h(
@@ -4434,6 +4732,9 @@ color-scheme:dark;
               h('div', { className: 'mgc-label' }, t('portable.previewTitle')),
               h('div', { className: 'mgc-cardTitle', style: { marginBottom: '6px' } }, summary.groupName),
               summary.brief.length > 0 ? h('p', { className: 'mgc-hint', style: { margin: '0 0 6px' } }, summary.brief) : null,
+              summary.scene?.length > 0
+                ? h('p', { className: 'mgc-hint', style: { margin: '0 0 6px' } }, t('portable.previewScene', { scene: summary.scene }))
+                : null,
               h('div', { className: 'mgc-hint' }, t('portable.previewOwner', { name: summary.ownerName })),
               h('div', { className: 'mgc-hint' }, t('portable.previewMembers', { count: summary.memberCount })),
               h('div', { className: 'mgc-hint' }, summary.members.map((member) => member.name).join('、')),
