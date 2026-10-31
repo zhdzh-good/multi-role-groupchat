@@ -2,13 +2,11 @@
 
 [![CI](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml/badge.svg)](https://github.com/zhdzh-good/multi-role-groupchat/actions/workflows/ci.yml)
 
-> 当前版本：**v1.5.0**（失败重试、长历史分页、角色库 / 拉群、失败诊断、多标签同步） · 仓库根目录 [README](../README.md)
-
-> 开发版新增（未发版）：群内消息搜索、场景便签。
+> 当前版本：**v1.6.0**（消息搜索、场景便签、失败重试、长历史分页、角色库 / 拉群） · 仓库根目录 [README](../README.md) · [更新公告](../docs/releases/v1.6.0.md)
 
 一个 DeepSeek Harness Web GUI 插件：**你以一个角色加入群聊，和 2–3 个 AI 成员在同一个群里聊天**。消息默认全群可见；任何成员都可以用 `@名字` 把话交给别人，`@你的角色名` 表示交还控制。
 
-按《多角色互聊插件-计划书-1.0》实现，覆盖 M0 + M1，在 v1.1 加入智能路由、v1.2 加入角色/群配置导入导出；v1.3 加入私有记忆/私人关系、prompt 分层与可重复 QA；v1.4 加入全局角色库/拉群、失败诊断与多标签同步；v1.5 加入失败重试与长历史分页：
+一个可长期维护的群聊面板：支持全局角色库、拉群建群、智能路由、概率接话、私有记忆与私人关系、场景便签、消息搜索、失败重试、长历史分页、模型覆盖、预算和导入导出。
 
 - **智能路由**：没有 `@` 时判断你在对谁说。显式 `@`、点名、「你/您」和「嗯 / 继续 / 然后呢」等短续接走本地规则；真正模糊的消息才调用一次小型分类模型
 - **概率接话**：目标成员必答；其余每位成员按概率接话，默认 30%，可在群设置里调 0–100%
@@ -161,7 +159,7 @@ plugin_manager action=install_bundle target=<本仓库路径>/multi-role-groupch
 也可以直接用 GitHub Release 的预构建 tarball，免去本地路径：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.5.0/zhdzh-good-multi-role-groupchat-1.5.0.tgz"
+dsh plugin --profile web add "https://github.com/zhdzh-good/multi-role-groupchat/releases/download/v1.6.0/zhdzh-good-multi-role-groupchat-1.6.0.tgz"
 ```
 
 安装或升级后刷新 Web 页面；左侧栏出现「群聊」。数据保存在
