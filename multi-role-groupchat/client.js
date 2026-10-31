@@ -24,8 +24,27 @@ window.__ModuleLoader__.load({
 .mgc-groupName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mgc-chevron{flex:none;color:var(--dsw-alias-label-secondary)}
 .mgc-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:20px}
-.mgc-sceneChip{max-width:min(360px,52vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent);color:var(--dsw-alias-brand-primary);font:inherit;font-size:11px;line-height:18px;padding:0 6px;cursor:pointer}
-.mgc-sceneChip:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,transparent)}
+.mgc-sceneNote{position:absolute;top:96px;right:18px;z-index:7;width:224px;max-height:min(280px,38vh);display:flex;flex-direction:column;padding:9px 10px 8px;border:1px solid rgba(96,74,20,.18);border-radius:4px 12px 5px 10px;background:#f4df8a;color:#3b3222;box-shadow:0 10px 26px rgba(0,0,0,.2);transform:rotate(-.35deg)}
+.mgc-sceneHead{display:flex;align-items:center;justify-content:space-between;gap:6px;flex:none;margin-bottom:5px}
+.mgc-sceneTitle{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6d5928}
+.mgc-sceneCollapse{width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:#6d5928;cursor:pointer;display:grid;place-items:center}
+.mgc-sceneCollapse:hover{background:rgba(96,74,20,.1)}
+.mgc-sceneBody{display:block;width:100%;min-height:38px;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:text;overflow:auto}
+.mgc-sceneText{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:18px}
+.mgc-sceneEmpty{display:block;font-size:12px;line-height:18px;opacity:.55}
+.mgc-sceneEdit{display:flex;flex-direction:column;gap:5px}
+.mgc-sceneInput{width:100%;min-height:78px;max-height:160px;resize:vertical;padding:6px 7px;border:1px solid rgba(96,74,20,.25);border-radius:6px;background:rgba(255,255,255,.45);color:#3b3222;font:inherit;font-size:12px;line-height:18px;outline:none}
+.mgc-sceneInput:focus{border-color:#8a6b1f;background:rgba(255,255,255,.65)}
+.mgc-sceneFoot{display:flex;align-items:center;gap:5px}
+.mgc-sceneCount{margin-right:auto;font-size:10px;color:#6d5928}
+.mgc-sceneBtn{height:23px;padding:0 8px;border:1px solid rgba(96,74,20,.24);border-radius:6px;background:rgba(255,255,255,.35);color:#3b3222;font:inherit;font-size:11px;cursor:pointer}
+.mgc-sceneBtn:hover:not(:disabled){background:rgba(255,255,255,.65)}
+.mgc-sceneBtn:disabled{opacity:.45;cursor:default}
+.mgc-sceneBtnPrimary{background:#3b3222;border-color:#3b3222;color:#f4df8a}
+.mgc-sceneBtnPrimary:hover:not(:disabled){background:#57472c}
+.mgc-sceneError{margin-top:5px;font-size:10px;line-height:15px;color:#8a2d1f}
+.mgc-sceneTab{position:absolute;top:104px;right:10px;z-index:7;writing-mode:vertical-rl;padding:9px 5px;border:1px solid rgba(96,74,20,.2);border-radius:8px 4px 4px 8px;background:#f4df8a;color:#3b3222;font:inherit;font-size:11px;font-weight:600;letter-spacing:.12em;box-shadow:0 8px 20px rgba(0,0,0,.18);cursor:pointer}
+@media (max-width:760px){.mgc-sceneNote{top:auto;bottom:84px;right:10px;width:min(208px,calc(100% - 24px));max-height:180px;transform:none}.mgc-sceneTab{top:auto;bottom:90px;right:6px}}
 .mgc-dot{width:3px;height:3px;border-radius:50%;background:var(--dsw-alias-label-secondary);flex:none}
 .mgc-headActions{display:flex;align-items:center;gap:8px;flex:none;padding-top:2px}
 .mgc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,opacity .12s}
@@ -525,8 +544,15 @@ color-scheme:dark;
       'group.scene': '当前场景（可选）',
       'group.sceneHint': '手动记录时间、地点、天气或气氛，每轮注入 prompt；不会自动推进剧情。',
       'group.scenePlaceholder': '例如：晚上九点，旧城书店，停电，雨声很大。',
-      'header.scene': '场景：{scene}',
-      'header.sceneEdit': '编辑当前场景',
+      'scene.title': '场景便签',
+      'scene.empty': '点一下写场景',
+      'scene.edit': '编辑场景',
+      'scene.save': '保存',
+      'scene.cancel': '取消',
+      'scene.clear': '清空',
+      'scene.collapse': '收起场景',
+      'scene.expand': '展开场景',
+      'scene.count': '{n} / 800',
       'group.policyTitle': '接话与路由',
       'group.replyMode': '接话模式',
       'group.replyModeValue': '智能路由：目标必答，其他人按概率接话',
@@ -832,8 +858,15 @@ color-scheme:dark;
       'group.scene': 'Current scene (optional)',
       'group.sceneHint': 'A manual time, place, weather, or mood note injected into every turn. It never advances the plot on its own.',
       'group.scenePlaceholder': 'e.g. 9 pm, the old bookshop, power out, heavy rain.',
-      'header.scene': 'Scene: {scene}',
-      'header.sceneEdit': 'Edit current scene',
+      'scene.title': 'Scene note',
+      'scene.empty': 'Click to write the scene',
+      'scene.edit': 'Edit scene',
+      'scene.save': 'Save',
+      'scene.cancel': 'Cancel',
+      'scene.clear': 'Clear',
+      'scene.collapse': 'Collapse scene',
+      'scene.expand': 'Expand scene',
+      'scene.count': '{n} / 800',
       'group.policyTitle': 'Routing and replies',
       'group.replyMode': 'Reply mode',
       'group.replyModeValue': 'Smart routing: addressees answer, others may chime in',
@@ -2697,7 +2730,6 @@ color-scheme:dark;
       const used = state.totals.inputTokens + state.totals.outputTokens;
       const max = state.budget?.maxInputTokens ?? 0;
       const ratio = max > 0 ? Math.min(1, used / max) : 0;
-      const scene = typeof state.group.scene === 'string' ? state.group.scene.trim() : '';
       return h(
         'header',
         { className: 'mgc-header' },
@@ -2732,21 +2764,6 @@ color-scheme:dark;
             state.pinnedCount > 0 ? h('span', null, t('header.pinned', { n: state.pinnedCount })) : null,
             max > 0 ? h('span', { className: 'mgc-dot' }) : null,
             max > 0 ? h('span', null, t('header.budget', { used: fmtTokens(used), max: fmtTokens(max) })) : null,
-            scene.length > 0 ? h('span', { className: 'mgc-dot' }) : null,
-            scene.length > 0
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'mgc-sceneChip',
-                    onClick: () => onOpen('group'),
-                    title: t('header.sceneEdit'),
-                  },
-                  t('header.scene', {
-                    scene: [...scene].length > 36 ? `${[...scene].slice(0, 36).join('')}…` : scene,
-                  }),
-                )
-              : null,
           ),
           max > 0
             ? h(
@@ -2897,6 +2914,137 @@ color-scheme:dark;
                   ),
                 ),
               ),
+      );
+    }
+
+    /**
+     * Sticky scene note. Clicking the paper opens an inline editor so the
+     * scene can be changed without opening the management drawer.
+     * @param {{state: object, t: object, store: object}} props - panel inputs.
+     * @returns {any} element.
+     */
+    function SceneNote({ state, t, store }) {
+      const saved = typeof state.group.scene === 'string' ? state.group.scene : '';
+      const [collapsed, setCollapsed] = useState(false);
+      const [editing, setEditing] = useState(false);
+      const [draft, setDraft] = useState(saved);
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState(null);
+      const area = useRef(null);
+      useEffect(() => {
+        if (!editing) setDraft(saved);
+      }, [saved, editing]);
+      useEffect(() => {
+        if (editing) area.current?.focus();
+      }, [editing]);
+      const save = async () => {
+        if (saving) return;
+        if (draft.trim() === saved.trim()) {
+          setDraft(saved);
+          setEditing(false);
+          setError(null);
+          return;
+        }
+        setSaving(true);
+        setError(null);
+        try {
+          await store.saveGroup({ scene: draft });
+          setEditing(false);
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          setSaving(false);
+        }
+      };
+      const cancel = () => {
+        setDraft(saved);
+        setError(null);
+        setEditing(false);
+      };
+      if (collapsed) {
+        return h(
+          'button',
+          {
+            type: 'button',
+            className: 'mgc-sceneTab',
+            onClick: () => setCollapsed(false),
+            title: t('scene.expand'),
+            'aria-label': t('scene.expand'),
+          },
+          t('scene.title'),
+        );
+      }
+      return h(
+        'aside',
+        { className: 'mgc-sceneNote', 'aria-label': t('scene.title') },
+        h(
+          'div',
+          { className: 'mgc-sceneHead' },
+          h('span', { className: 'mgc-sceneTitle' }, t('scene.title')),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'mgc-sceneCollapse',
+              onClick: () => setCollapsed(true),
+              title: t('scene.collapse'),
+              'aria-label': t('scene.collapse'),
+            },
+            h('span', { style: { display: 'inline-flex', transform: 'rotate(180deg)' } }, h(IconChevron, { size: 12 })),
+          ),
+        ),
+        editing
+          ? h(
+              'div',
+              { className: 'mgc-sceneEdit' },
+              h('textarea', {
+                ref: area,
+                className: 'mgc-sceneInput',
+                value: draft,
+                maxLength: 800,
+                onChange: (event) => setDraft(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cancel();
+                  } else if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault();
+                    save();
+                  }
+                },
+                placeholder: t('group.scenePlaceholder'),
+                'aria-label': t('scene.title'),
+              }),
+              h(
+                'div',
+                { className: 'mgc-sceneFoot' },
+                h('span', { className: 'mgc-sceneCount' }, t('scene.count', { n: [...draft].length })),
+                h(
+                  'button',
+                  { type: 'button', className: 'mgc-sceneBtn', onClick: () => { setDraft(''); area.current?.focus(); }, disabled: saving || draft.length === 0 },
+                  t('scene.clear'),
+                ),
+                h('button', { type: 'button', className: 'mgc-sceneBtn', onClick: cancel, disabled: saving }, t('scene.cancel')),
+                h(
+                  'button',
+                  { type: 'button', className: 'mgc-sceneBtn mgc-sceneBtnPrimary', onClick: save, disabled: saving },
+                  saving ? t('common.saving') : t('scene.save'),
+                ),
+              ),
+            )
+          : h(
+              'button',
+              {
+                type: 'button',
+                className: 'mgc-sceneBody',
+                onClick: () => setEditing(true),
+                title: t('scene.edit'),
+              },
+              saved.length > 0
+                ? h('span', { className: 'mgc-sceneText' }, saved)
+                : h('span', { className: 'mgc-sceneEmpty' }, t('scene.empty')),
+            ),
+        error === null ? null : h('div', { className: 'mgc-sceneError' }, error),
       );
     }
 
@@ -3066,6 +3214,7 @@ color-scheme:dark;
             onRetry: (noticeId) => store.retryNotice(noticeId),
             focusId,
           }),
+          h(SceneNote, { state: uiState, t, store }),
           state.error !== null || state.actionError !== null || state.actionNotice !== null
             ? h('div', { className: 'mgc-bannerSlot' }, h(Banners, { state, t, store }))
             : null,
