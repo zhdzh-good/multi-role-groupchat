@@ -89,6 +89,7 @@ window.__ModuleLoader__.load({
 .mgc-foldBtn:hover{color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent)}
 .mgc-foldMsg{opacity:.5}
 .mgc-foldMsg:hover,.mgc-foldMsg:focus-within{opacity:.8}
+.mgc-foldMsg.mgc-msgFocus{opacity:1}
 .mgc-composer{flex:none;border-top:.5px solid var(--dsw-alias-border-l1);padding:10px clamp(16px,3vw,36px) 16px;background:var(--dsw-alias-bg-base)}
 .mgc-composerInner{max-width:840px;margin:0 auto}
 .mgc-banner{display:flex;align-items:flex-start;gap:8px;margin:0 0 8px;padding:7px 10px;border-radius:9px;font-size:12px;line-height:18px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 9%,transparent);color:var(--dsw-alias-state-error-primary)}
@@ -2962,7 +2963,7 @@ color-scheme:dark;
       }, [state.group?.id]);
       useEffect(() => {
         if (focusId === null) return undefined;
-        const timer = setTimeout(() => setFocusId(null), 2200);
+        const timer = setTimeout(() => setFocusId(null), 4000);
         return () => clearTimeout(timer);
       }, [focusId]);
       const jumpToMessage = (messageId) => {
